@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>glim_ros</name>
+  <version>0.0.0</version>
+  <description>3D LiDAR-IMU mapping framework</description>
+  <maintainer email="k.koide@aist.go.jp">koide</maintainer>
+  <license>GPLv3</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>glim</depend>
+  <depend>rclcpp</depend>
+  <depend>cv_bridge</depend>
+  <depend>sensor_msgs</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
