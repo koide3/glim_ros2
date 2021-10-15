@@ -1,6 +1,7 @@
 #include <any>
 #include <thread>
 #include <iostream>
+#include <boost/format.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -8,6 +9,7 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <livox_interfaces/msg/custom_msg.hpp>
 
 #include <glim/util/config.hpp>
 #include <glim/preprocess/cloud_preprocessor.hpp>
@@ -29,7 +31,8 @@ public:
     using std::placeholders::_1;
     imu_sub = this->create_subscription<sensor_msgs::msg::Imu>("/livox/imu", 100, std::bind(&GlimROSNode::imu_callback, this, _1));
     image_sub = this->create_subscription<sensor_msgs::msg::Image>("/image", 10, std::bind(&GlimROSNode::image_callback, this, _1));
-    points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>("/livox/lidar", 10, std::bind(&GlimROSNode::points_callback, this, _1));
+    // points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>("/livox/lidar", 10, std::bind(&GlimROSNode::points_callback, this, _1));
+    points_sub = this->create_subscription<livox_interfaces::msg::CustomMsg>("/livox/lidar", 10, std::bind(&GlimROSNode::livox_points_callback, this, _1));
   }
 
   ~GlimROSNode() {}
@@ -60,6 +63,22 @@ private:
     }
 
     auto preprocessed = preprocessor->preprocess(frame->stamp, frame->times, frame->points);
+    std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
+    auto estimated = odometry_estimation->insert_frame(preprocessed, marginalized_frames);
+  }
+
+  void livox_points_callback(const livox_interfaces::msg::CustomMsg::ConstSharedPtr msg) {
+    const double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9;
+    std::vector<double> times(msg->point_num);
+    std::vector<Eigen::Vector4d, Eigen::aligned_allocator<Eigen::Vector4d>> points(msg->point_num);
+
+    for (int i = 0; i < msg->point_num; i++) {
+      const auto& point = msg->points[i];
+      times[i] = point.offset_time / 1e9;
+      points[i] << point.x, point.y, point.z, 1.0;
+    }
+
+    auto preprocessed = preprocessor->preprocess(stamp, times, points);
     std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
     auto estimated = odometry_estimation->insert_frame(preprocessed, marginalized_frames);
   }
