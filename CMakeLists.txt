@@ -12,7 +12,7 @@ ament_auto_find_build_dependencies()
 find_package(glim REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(Iridescence REQUIRED)
+find_package(GTSAM REQUIRED)
 
 ament_auto_add_executable(glim_ros
   src/glim_ros/raw_points.cpp
@@ -22,11 +22,11 @@ target_include_directories(glim_ros PUBLIC
   include
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
-  ${Iridescence_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIRS}
 )
 target_link_libraries(glim_ros
   ${OpenCV_LIBRARIES}
-  ${Iridescence_LIBRARIES}
+  ${GTSAM_LIBRARIES}
 )
 
 ament_auto_package()
