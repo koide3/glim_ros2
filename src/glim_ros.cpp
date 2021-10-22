@@ -20,7 +20,7 @@
 #include <glim/frontend/odometry_estimation.hpp>
 #include <glim/backend/sub_mapping.hpp>
 #include <glim/backend/global_mapping.hpp>
-#include <glim/viewer/interactive_viewer.hpp>
+#include <glim/viewer/standard_viewer.hpp>
 
 #include <glim_ros/raw_points.hpp>
 
@@ -32,13 +32,12 @@ public:
 
     latest_imu_stamp = 0.0;
 
-    preprocessor.reset(new glim::CloudPreprocessor);
+    standard_viewer.reset(new glim::StandardViewer);
 
+    preprocessor.reset(new glim::CloudPreprocessor);
     odometry_estimation.reset(new glim::AsyncOdometryEstimation(std::shared_ptr<glim::OdometryEstimation>(new glim::OdometryEstimation)));
     sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
     global_mapping.reset(new glim::AsyncGlobalMapping(std::shared_ptr<glim::GlobalMapping>(new glim::GlobalMapping)));
-
-    interactive_viewer.reset(new glim::InteractiveViewer);
 
     // const std::string points_topic = "/camera/depth/color/points";
     // const std::string imu_topic = "/camera/imu";
@@ -155,7 +154,7 @@ private:
   std::unique_ptr<glim::AsyncGlobalMapping> global_mapping;
 
 
-  std::unique_ptr<glim::InteractiveViewer> interactive_viewer;
+  std::unique_ptr<glim::StandardViewer> standard_viewer;
 };
 
 int main(int argc, char** argv) {
