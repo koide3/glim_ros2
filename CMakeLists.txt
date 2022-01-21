@@ -15,9 +15,8 @@ find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(Iridescence REQUIRED)
 
-####################
-### Main library ###
-####################
+
+### glim_ros ###
 ament_auto_add_library(glim_ros SHARED
   src/glim_ros/raw_points.cpp
   src/glim_ros/glim_ros.cpp
@@ -77,6 +76,5 @@ target_link_libraries(offline_viewer
   ${Iridescence_LIBRARIES}
 )
 
-install(DIRECTORY config DESTINATION share/glim_ros)
-
 ament_auto_package()
+install(DIRECTORY config DESTINATION share/glim_ros)

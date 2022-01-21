@@ -19,9 +19,6 @@ int main(int argc, char** argv) {
   rclcpp::NodeOptions options;
   auto glim = std::make_shared<glim_ros::GlimROS>(options);
 
-  rclcpp::executors::SingleThreadedExecutor exec;
-  exec.add_node(glim);
-
   // List topics
   const std::string config_rosbag_path = ament_index_cpp::get_package_share_directory("glim_ros") + "/config/glim_rosbag.json";
   glim::Config config_rosbag(config_rosbag_path);
@@ -117,7 +114,7 @@ int main(int argc, char** argv) {
         compressed_image_serialization.deserialize_message(&serialized_msg, compressed_image_msg.get());
       }
 
-      exec.spin_once();
+      glim->timer_callback();
     }
 
     return true;
@@ -131,8 +128,8 @@ int main(int argc, char** argv) {
   }
 
   while (glim->ok()) {
-    exec.spin_once();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    glim->timer_callback();
   }
 
   glim->save("/tmp/dump");

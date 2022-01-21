@@ -31,6 +31,8 @@ public:
   GlimROS(const rclcpp::NodeOptions& options);
   ~GlimROS();
 
+  void timer_callback();
+
   void imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg);
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
   void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
@@ -45,8 +47,6 @@ public:
   void save(const std::string& path);
 
 private:
-  void timer_callback();
-
 private:
   std::any timer;
   std::any imu_sub;
