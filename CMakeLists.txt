@@ -13,20 +13,55 @@ find_package(glim REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
+find_package(Iridescence REQUIRED)
 
-ament_auto_add_executable(glim_ros
+ament_auto_add_library(glim_ros SHARED
   src/glim_ros/raw_points.cpp
-  src/glim_ros.cpp
+  src/glim_ros/glim_ros.cpp
 )
 target_include_directories(glim_ros PUBLIC
   include
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${GTSAM_INCLUDE_DIRS}
+  ${Iridescence_INCLUDE_DIRS}
 )
 target_link_libraries(glim_ros
   ${OpenCV_LIBRARIES}
   ${GTSAM_LIBRARIES}
+  ${Iridescence_LIBRARIES}
 )
+rclcpp_components_register_nodes(glim_ros "glim_ros")
+
+
+ament_auto_add_executable(glim_rosnode
+  src/glim_rosnode.cpp
+)
+target_link_libraries(glim_rosnode
+  glim_ros
+)
+
+ament_auto_add_executable(glim_rosbag
+  src/glim_rosbag.cpp
+)
+target_link_libraries(glim_rosbag
+  glim_ros
+)
+
+ament_auto_add_executable(offline_viewer
+  src/offline_viewer.cpp
+)
+target_include_directories(offline_viewer PUBLIC
+  include
+  ${EIGEN3_INCLUDE_DIR}
+  ${GTSAM_INCLUDE_DIRS}
+  ${Iridescence_INCLUDE_DIRS}
+)
+target_link_libraries(offline_viewer
+  ${GTSAM_LIBRARIES}
+  ${Iridescence_LIBRARIES}
+)
+
+install(DIRECTORY config DESTINATION share/glim_ros)
 
 ament_auto_package()
