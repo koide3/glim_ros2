@@ -15,6 +15,9 @@ find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(Iridescence REQUIRED)
 
+####################
+### Main library ###
+####################
 ament_auto_add_library(glim_ros SHARED
   src/glim_ros/raw_points.cpp
   src/glim_ros/glim_ros.cpp
@@ -33,7 +36,16 @@ target_link_libraries(glim_ros
 )
 rclcpp_components_register_nodes(glim_ros "glim_ros")
 
+# Optional livox dependency
+find_package(livox_interfaces QUIET)
+if(${livox_interfaces_FOUND})
+  add_definitions(-DBUILD_WITH_LIVOX)
+  target_include_directories(glim_ros PUBLIC ${livox_interfaces_INCLUDE_DIRS})
+  target_link_libraries(glim_ros ${livox_interfaces_LIBRARIES})
+endif()
 
+
+### glim_rosnode ###
 ament_auto_add_executable(glim_rosnode
   src/glim_rosnode.cpp
 )
@@ -41,6 +53,7 @@ target_link_libraries(glim_rosnode
   glim_ros
 )
 
+### glim_rosbag ###
 ament_auto_add_executable(glim_rosbag
   src/glim_rosbag.cpp
 )
@@ -48,6 +61,8 @@ target_link_libraries(glim_rosbag
   glim_ros
 )
 
+
+### offline_viewer ###
 ament_auto_add_executable(offline_viewer
   src/offline_viewer.cpp
 )

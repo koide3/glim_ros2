@@ -9,7 +9,10 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+
+#ifdef BUILD_WITH_LIVOX
 #include <livox_interfaces/msg/custom_msg.hpp>
+#endif
 
 namespace glim {
 class CloudPreprocessor;
@@ -31,7 +34,10 @@ public:
   void imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg);
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
   void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+
+#ifdef BUILD_WITH_LIVOX
   void livox_points_callback(const livox_interfaces::msg::CustomMsg::ConstSharedPtr msg);
+#endif
 
   bool ok() const;
   void wait();

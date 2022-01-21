@@ -12,7 +12,6 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <livox_interfaces/msg/custom_msg.hpp>
 
 #include <glim/util/config.hpp>
 #include <glim/preprocess/cloud_preprocessor.hpp>
@@ -107,6 +106,7 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
   }
 }
 
+#ifdef BUILD_WITH_LIVOX
 void GlimROS::livox_points_callback(const livox_interfaces::msg::CustomMsg::ConstSharedPtr msg) {
   const double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9;
   std::vector<double> times(msg->point_num);
@@ -132,6 +132,7 @@ void GlimROS::livox_points_callback(const livox_interfaces::msg::CustomMsg::Cons
     frame_queue.pop_front();
   }
 }
+#endif
 
 void GlimROS::timer_callback() {
   std::vector<glim::EstimationFrame::ConstPtr> estimation_frames;
