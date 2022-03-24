@@ -15,15 +15,12 @@
 #endif
 
 namespace glim {
+class TimeKeeper;
 class CloudPreprocessor;
-class AsyncOdometryEstimation;
+class OdometryEstimationBase;
 class AsyncSubMapping;
 class AsyncGlobalMapping;
 class StandardViewer;
-}  // namespace glim
-
-namespace glim_ros {
-
 struct RawPoints;
 
 class GlimROS : public rclcpp::Node {
@@ -54,10 +51,12 @@ private:
   std::any points_sub;
 
   double latest_imu_stamp;
-  std::deque<std::shared_ptr<const glim_ros::RawPoints>> frame_queue;
+  std::deque<std::shared_ptr<const glim::RawPoints>> frame_queue;
 
+  std::unique_ptr<glim::TimeKeeper> time_keeper;
   std::unique_ptr<glim::CloudPreprocessor> preprocessor;
-  std::unique_ptr<glim::AsyncOdometryEstimation> odometry_estimation;
+
+  std::shared_ptr<glim::OdometryEstimationBase> odometry_estimation;
   std::unique_ptr<glim::AsyncSubMapping> sub_mapping;
   std::unique_ptr<glim::AsyncGlobalMapping> global_mapping;
 

@@ -17,13 +17,13 @@ int main(int argc, char** argv) {
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions options;
-  auto glim = std::make_shared<glim_ros::GlimROS>(options);
+  auto glim = std::make_shared<glim::GlimROS>(options);
 
   // List topics
-  const std::string config_rosbag_path = ament_index_cpp::get_package_share_directory("glim_ros") + "/config/glim_rosbag.json";
-  glim::Config config_rosbag(config_rosbag_path);
+  const std::string config_ros_path = ament_index_cpp::get_package_share_directory("glim_ros") + "/config/glim_ros.json";
+  glim::Config config_ros(config_ros_path);
 
-  const auto topics = config_rosbag.param<std::vector<std::string>>("glim_rosbag", "topics");
+  const auto topics = config_ros.param<std::vector<std::string>>("glim_rosbag", "topics");
   if (!topics) {
     std::cerr << "error: topics must be specified" << std::endl;
     return 1;
@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     std::cout << "- " << bag_filename << std::endl;
   }
 
-  const double playback_speed = config_rosbag.param<double>("glim_rosbag", "playback_speed", 1.0);
+  const double playback_speed = config_ros.param<double>("glim_rosbag", "playback_speed", 1.0);
   const auto real_t0 = std::chrono::high_resolution_clock::now();
   rcutils_time_point_value_t bag_t0 = 0;
 

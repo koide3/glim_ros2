@@ -1,0 +1,23 @@
+{
+  "glim_ros": {
+    "config_path": "/config",
+    // Viewer
+    "enable_viewer": true,
+    "enable_rviz": false,
+    // Extension modules
+    "enable_ext_dbow": false,
+    "enable_ext_scancontext": false,
+    "enable_ext_orbslam": false
+  },
+  // Following params are used for only glim_rosbag
+  // To change topics of glim_rosnode, use the standard ROS remap mechanism
+  "glim_rosbag": {
+    "playback_speed": 3.0,
+    "topics": [
+      "/boomtop/imu/front_right",
+      "/boomtop/lidar/front_right"
+    ],
+    "vi_imu_topic": "/alphasense/imu",
+    "vi_image_topic": ""
+  }
+}

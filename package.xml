@@ -3,8 +3,8 @@
 <package format="3">
   <name>glim_ros</name>
   <version>0.0.0</version>
-  <description>3D LiDAR-IMU mapping framework</description>
-  <maintainer email="k.koide@aist.go.jp">koide</maintainer>
+  <description>LiDAR-IMU frontend based on tight coupling of geometrical and inertial constraints</description>
+  <maintainer email="k.koide@aist.go.jp">k.koide</maintainer>
   <license>GPLv3</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
