@@ -22,6 +22,7 @@ find_package(Iridescence REQUIRED)
 ### glim_ros ###
 ament_auto_add_library(glim_ros SHARED
   src/glim_ros/glim_ros.cpp
+  src/glim_ros/rviz_viewer.cpp
 )
 target_include_directories(glim_ros PUBLIC
   include
