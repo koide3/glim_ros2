@@ -16,7 +16,20 @@ RvizViewer::RvizViewer(rclcpp::Node& node) {
   tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(node);
 
   points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/points", 10);
-  map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/map", 1);
+  aligned_points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/aligned_points", 10);
+
+  rmw_qos_profile_t map_qos_profile = {
+    RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+    1,
+    RMW_QOS_POLICY_RELIABILITY_RELIABLE,
+    RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
+    RMW_QOS_DEADLINE_DEFAULT,
+    RMW_QOS_LIFESPAN_DEFAULT,
+    RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
+    RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
+    false};
+  rclcpp::QoS map_qos(rclcpp::QoSInitialization(map_qos_profile.history, map_qos_profile.depth), map_qos_profile);
+  map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/map", map_qos);
 
   odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("/glim_ros/odom", 10);
   pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("/glim_ros/pose", 10);
@@ -26,6 +39,7 @@ RvizViewer::RvizViewer(rclcpp::Node& node) {
   odom_frame_id = "odom";
   world_frame_id = "world";
 
+  last_globalmap_pub_time = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
   trajectory.reset(new TrajectoryManager);
 
   set_callbacks();
@@ -57,24 +71,6 @@ void RvizViewer::set_callbacks() {
 }
 
 void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) {
-  if (points_pub->get_subscription_count()) {
-    std::string frame_id;
-    switch (new_frame->frame_id) {
-      case FrameID::LIDAR:
-        frame_id = lidar_frame_id;
-        break;
-      case FrameID::IMU:
-        frame_id = imu_frame_id;
-        break;
-      case FrameID::WORLD:
-        frame_id = world_frame_id;
-        break;
-    }
-
-    auto points = frame_to_pointcloud2(frame_id, new_frame->stamp, *new_frame->frame);
-    points_pub->publish(*points);
-  }
-
   const Eigen::Isometry3d T_odom_imu = new_frame->T_world_imu;
   const Eigen::Quaterniond quat_odom_imu(T_odom_imu.linear());
 
@@ -163,6 +159,40 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     pose.pose.orientation.w = quat_world_imu.w();
     pose_pub->publish(pose);
   }
+
+  if (points_pub->get_subscription_count()) {
+    std::string frame_id;
+    switch (new_frame->frame_id) {
+      case FrameID::LIDAR:
+        frame_id = lidar_frame_id;
+        break;
+      case FrameID::IMU:
+        frame_id = imu_frame_id;
+        break;
+      case FrameID::WORLD:
+        frame_id = world_frame_id;
+        break;
+    }
+
+    auto points = frame_to_pointcloud2(frame_id, new_frame->stamp, *new_frame->frame);
+    points_pub->publish(*points);
+  }
+
+  if (aligned_points_pub->get_subscription_count()) {
+    std::vector<Eigen::Vector4d> transformed(new_frame->frame->size());
+    for (int i = 0; i < new_frame->frame->size(); i++) {
+      transformed[i] = new_frame->T_world_sensor() * new_frame->frame->points[i];
+    }
+
+    gtsam_ext::Frame frame;
+    frame.num_points = new_frame->frame->size();
+    frame.points = transformed.data();
+    frame.times = new_frame->frame->times;
+    frame.intensities = new_frame->frame->intensities;
+
+    auto points = frame_to_pointcloud2(world_frame_id, new_frame->stamp, frame);
+    aligned_points_pub->publish(*points);
+  }
 }
 
 void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& submaps) {
@@ -187,6 +217,12 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       return;
     }
 
+    const rclcpp::Time now = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
+    if (now - last_globalmap_pub_time < std::chrono::seconds(30)) {
+      return;
+    }
+    last_globalmap_pub_time = now;
+
     int total_num_points = 0;
     for (const auto& submap : this->submaps) {
       total_num_points += submap->size();
@@ -204,7 +240,6 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       begin += submap->size();
     }
 
-    const rclcpp::Time now = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
     auto points_msg = frame_to_pointcloud2(world_frame_id, now.seconds(), *merged);
     map_pub->publish(*points_msg);
   });

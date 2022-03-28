@@ -3,6 +3,7 @@
 #include <any>
 #include <atomic>
 #include <thread>
+#include <chrono>
 
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/transform_broadcaster.h>
@@ -37,12 +38,15 @@ private:
 
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
 
+  rclcpp::Time last_globalmap_pub_time;
+
   std::string imu_frame_id;
   std::string lidar_frame_id;
   std::string odom_frame_id;
   std::string world_frame_id;
 
   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> points_pub;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> aligned_points_pub;
   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> map_pub;
 
   std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>> odom_pub;
