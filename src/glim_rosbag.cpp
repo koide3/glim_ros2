@@ -1,5 +1,7 @@
 #include <glob.h>
+#include <chrono>
 #include <iostream>
+#include <boost/format.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rosbag2_cpp/reader.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
@@ -7,7 +9,36 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <glim/util/config.hpp>
+#include <glim/util/extension_module_ros2.hpp>
+#include <glim/common/callbacks.hpp>
 #include <glim_ros/glim_ros.hpp>
+
+class SpeedCounter {
+public:
+  SpeedCounter() : last_sim_time(0.0), last_real_time(std::chrono::high_resolution_clock::now()) {}
+
+  void update(const double& stamp) {
+    const auto now = std::chrono::high_resolution_clock::now();
+    if (now - last_real_time < std::chrono::seconds(5)) {
+      return;
+    }
+
+    if (last_sim_time > 0.0) {
+      const auto real = now - last_real_time;
+      const auto sim = stamp - last_sim_time;
+      const double playback_speed = sim / (std::chrono::duration_cast<std::chrono::nanoseconds>(real).count() / 1e9);
+      glim::notify(glim::NotificationLevel::INFO, (boost::format("playback speed:%.3fx") % playback_speed).str());
+    }
+
+    last_sim_time = stamp;
+    last_real_time = now;
+  }
+
+private:
+  double last_sim_time;
+  std::chrono::high_resolution_clock::time_point last_real_time;
+};
+
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -36,6 +67,14 @@ int main(int argc, char** argv) {
     filter.topics.push_back(topic);
   }
 
+  //
+  std::unordered_map<std::string, std::vector<glim::GenericTopicSubscription::Ptr>> subscription_map;
+  for (const auto& sub : glim->extension_subscriptions()) {
+    std::cout << "- ext    :" << sub->topic << std::endl;
+    filter.topics.push_back(sub->topic);
+    subscription_map[sub->topic].push_back(sub);
+  }
+
   // List input rosbag filenames
   std::vector<std::string> bag_filenames;
 
@@ -60,6 +99,7 @@ int main(int argc, char** argv) {
   const double playback_speed = config_ros.param<double>("glim_rosbag", "playback_speed", 1.0);
   const auto real_t0 = std::chrono::high_resolution_clock::now();
   rcutils_time_point_value_t bag_t0 = 0;
+  SpeedCounter speed_counter;
 
   // Bag read function
   const auto read_bag = [&](const std::string& bag_filename) {
@@ -114,7 +154,15 @@ int main(int argc, char** argv) {
         compressed_image_serialization.deserialize_message(&serialized_msg, compressed_image_msg.get());
       }
 
+      auto found = subscription_map.find(msg->topic_name);
+      if (found != subscription_map.end()) {
+        for (const auto& sub : found->second) {
+          sub->insert_message_instance(serialized_msg);
+        }
+      }
+
       glim->timer_callback();
+      speed_counter.update(msg->time_stamp / 1e9);
     }
 
     return true;

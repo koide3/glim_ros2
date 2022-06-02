@@ -18,6 +18,8 @@
 #include <glim/util/config.hpp>
 #include <glim/util/time_keeper.hpp>
 #include <glim/util/ros_cloud_converter.hpp>
+#include <glim/util/extension_module.hpp>
+#include <glim/util/extension_module_ros2.hpp>
 #include <glim/preprocess/cloud_preprocessor.hpp>
 #include <glim/frontend/async_odometry_estimation.hpp>
 #include <glim/frontend/odometry_estimation_ct.hpp>
@@ -73,17 +75,32 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
   global_mapping.reset(new glim::AsyncGlobalMapping(std::shared_ptr<glim::GlobalMapping>(new glim::GlobalMapping)));
 
-  /*
-  const std::string imu_topic = "/boomtop/imu/front_right";
-  const std::string points_topic = "/boomtop/lidar/front_right";
-  const std::string image_topic = "/camera/color/image_raw";
+  // Extention modules
+  const auto extensions = config_ros.param<std::vector<std::string>>("glim_ros", "extension_modules");
+  if (extensions && !extensions->empty()) {
+    std::cout << console::bold_red << "Extension modules are enabled!!" << console::reset << std::endl;
+    std::cout << console::bold_red << "You must carefully check and follow the licenses of ext modules" << console::reset << std::endl;
 
-  using std::placeholders::_1;
-  imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 100, std::bind(&GlimROS::imu_callback, this, _1));
-  // image_sub = this->create_subscription<sensor_msgs::msg::Image>(image_topic, 10, std::bind(&GlimROS::image_callback, this, _1));
-  points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, 10, std::bind(&GlimROS::points_callback, this, _1));
-  // points_sub = this->create_subscription<livox_interfaces::msg::CustomMsg>(points_topic, 10, std::bind(&GlimROS::livox_points_callback, this, _1));
-  */
+    const std::string config_ext_path = ament_index_cpp::get_package_share_directory("glim_ext") + "/config";
+    std::cout << "config_ext_path: " << config_ext_path << std::endl;
+    glim::GlobalConfig::instance()->override_param<std::string>("global", "config_ext", config_ext_path);
+
+    for (const auto& extension : *extensions) {
+      auto ext_module = ExtensionModule::load(extension);
+      if (ext_module == nullptr) {
+        std::cerr << console::bold_red << "error: failed to load " << extension << console::reset << std::endl;
+        continue;
+      } else {
+        extension_modules.push_back(ext_module);
+
+        auto ext_module_ros = std::dynamic_pointer_cast<ExtensionModuleROS2>(ext_module);
+        if (ext_module_ros) {
+          const auto subs = ext_module_ros->create_subscriptions();
+          extension_subs.insert(extension_subs.end(), subs.begin(), subs.end());
+        }
+      }
+    }
+  }
 
   timer = this->create_wall_timer(std::chrono::milliseconds(1), std::bind(&GlimROS::timer_callback, this));
 }
@@ -92,6 +109,10 @@ GlimROS::~GlimROS() {
   if (standard_viewer) {
     standard_viewer->stop();
   }
+}
+
+const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension_subscriptions() {
+  return extension_subs;
 }
 
 void GlimROS::imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {

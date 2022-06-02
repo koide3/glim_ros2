@@ -23,6 +23,9 @@ class AsyncGlobalMapping;
 class StandardViewer;
 struct RawPoints;
 
+class ExtensionModule;
+class GenericTopicSubscription;
+
 class GlimROS : public rclcpp::Node {
 public:
   GlimROS(const rclcpp::NodeOptions& options);
@@ -43,7 +46,8 @@ public:
 
   void save(const std::string& path);
 
-private:
+  const std::vector<std::shared_ptr<GenericTopicSubscription>>& extension_subscriptions();
+
 private:
   std::any timer;
   std::any imu_sub;
@@ -59,6 +63,10 @@ private:
   std::shared_ptr<glim::OdometryEstimationBase> odometry_estimation;
   std::unique_ptr<glim::AsyncSubMapping> sub_mapping;
   std::unique_ptr<glim::AsyncGlobalMapping> global_mapping;
+
+  // Extension modulles
+  std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
+  std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
 
   std::unique_ptr<glim::StandardViewer> standard_viewer;
 };
