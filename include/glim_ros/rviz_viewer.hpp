@@ -14,12 +14,16 @@
 
 #include <glim/frontend/estimation_frame.hpp>
 #include <glim/backend/sub_map.hpp>
+#include <glim/util/extension_module.hpp>
 
 namespace glim {
 
 class TrajectoryManager;
 
-class RvizViewer {
+/**
+ * @brief Rviz-based viewer
+ */
+class RvizViewer : public ExtensionModule {
 public:
   RvizViewer(rclcpp::Node& node);
   ~RvizViewer();

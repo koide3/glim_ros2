@@ -126,7 +126,7 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
 
   while (!frame_queue.empty() && frame_queue.front()->stamp + 0.1 < latest_imu_stamp) {
     const auto front = frame_queue.front();
-    auto preprocessed = preprocessor->preprocess(front->stamp, front->times, front->points, front->intensities);
+    auto preprocessed = preprocessor->preprocess(front);
 
     for (double& intensity : preprocessed->intensities) {
       intensity /= 128.0;

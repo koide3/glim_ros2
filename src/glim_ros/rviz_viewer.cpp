@@ -84,6 +84,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   Eigen::Quaterniond quat_world_imu;
 
   {
+    // Transform the frontend frame to the global optimization-based world frame
     std::lock_guard<std::mutex> lock(trajectory_mutex);
     trajectory->add_odom(new_frame->stamp, new_frame->T_world_imu);
     T_world_odom = trajectory->get_T_world_odom();
@@ -93,6 +94,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     quat_world_imu = Eigen::Quaterniond(T_world_imu.linear());
   }
 
+  // Publish transforms
   // Odom -> IMU
   geometry_msgs::msg::TransformStamped trans;
   trans.header.stamp = rclcpp::Time(new_frame->stamp);
@@ -132,6 +134,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   tf_broadcaster->sendTransform(trans);
 
   if (odom_pub->get_subscription_count()) {
+    // Publish sensor pose (without loop closure)
     nav_msgs::msg::Odometry odom;
     odom.header.stamp = rclcpp::Time(new_frame->stamp);
     odom.header.frame_id = odom_frame_id;
@@ -147,6 +150,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   }
 
   if (pose_pub->get_subscription_count()) {
+    // Publish sensor pose (with loop closure)
     geometry_msgs::msg::PoseStamped pose;
     pose.header.stamp = rclcpp::Time(new_frame->stamp);
     pose.header.frame_id = world_frame_id;
@@ -161,6 +165,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   }
 
   if (points_pub->get_subscription_count()) {
+    // Publish points in their own coordinate frame
     std::string frame_id;
     switch (new_frame->frame_id) {
       case FrameID::LIDAR:
@@ -179,6 +184,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   }
 
   if (aligned_points_pub->get_subscription_count()) {
+    // Publish points aligned to the world frame to avoid some visualization issues in Rviz2
     std::vector<Eigen::Vector4d> transformed(new_frame->frame->size());
     for (int i = 0; i < new_frame->frame->size(); i++) {
       transformed[i] = new_frame->T_world_sensor() * new_frame->frame->points[i];
@@ -210,6 +216,7 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
     submap_poses[i] = submaps[i]->T_world_origin;
   }
 
+  // Invoke a submap concatenation task in the RvizViewer thread
   invoke([this, latest_submap, submap_poses] {
     this->submaps.push_back(latest_submap->frame);
 
@@ -217,6 +224,7 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       return;
     }
 
+    // Publish global map every 30 seconds
     const rclcpp::Time now = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
     if (now - last_globalmap_pub_time < std::chrono::seconds(30)) {
       return;
@@ -228,6 +236,7 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       total_num_points += submap->size();
     }
 
+    // Concatenate all the submap points
     gtsam_ext::FrameCPU::Ptr merged(new gtsam_ext::FrameCPU);
     merged->num_points = total_num_points;
     merged->points_storage.resize(total_num_points);
