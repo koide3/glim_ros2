@@ -60,8 +60,11 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   if (frontend_mode == "CPU") {
     RCLCPP_WARN_STREAM(this->get_logger(), "CPU frontend has not been implemented yet!!");
   } else if (frontend_mode == "GPU") {
+#ifdef BUILD_GTSAM_EXT_GPU
     odom.reset(new glim::OdometryEstimationGPU);
-    // RCLCPP_WARN_STREAM(this->get_logger(), "GPU frontend is selected although glim was built without GPU support!!");
+#else
+    RCLCPP_WARN_STREAM(this->get_logger(), "GPU frontend is selected although glim was built without GPU support!!");
+#endif
   } else if (frontend_mode == "CT") {
     odom.reset(new glim::OdometryEstimationCT);
   } else {

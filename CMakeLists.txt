@@ -8,6 +8,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+option(BUILD_WITH_CUDA "Build with GPU support" ON)
+option(BUILD_WITH_VIEWER "Build with visuzlier" ON)
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
@@ -18,6 +20,12 @@ find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(Iridescence REQUIRED)
 
+if(BUILD_WITH_VIEWER)
+  add_definitions(-DBUILD_WITH_VIEWER)
+endif()
+if(BUILD_WITH_CUDA)
+  add_definitions(-DBUILD_GTSAM_EXT_GPU)
+endif()
 
 ### glim_ros ###
 ament_auto_add_library(glim_ros SHARED
