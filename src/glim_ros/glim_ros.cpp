@@ -23,6 +23,7 @@
 #include <glim/preprocess/cloud_preprocessor.hpp>
 #include <glim/frontend/async_odometry_estimation.hpp>
 #include <glim/frontend/odometry_estimation_ct.hpp>
+#include <glim/frontend/odometry_estimation_cpu.hpp>
 #include <glim/frontend/odometry_estimation_gpu.hpp>
 #include <glim/backend/async_sub_mapping.hpp>
 #include <glim/backend/async_global_mapping.hpp>
@@ -58,7 +59,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   std::shared_ptr<glim::OdometryEstimationBase> odom;
   if (frontend_mode == "CPU") {
-    RCLCPP_WARN_STREAM(this->get_logger(), "CPU frontend has not been implemented yet!!");
+    odom.reset(new glim::OdometryEstimationCPU);
   } else if (frontend_mode == "GPU") {
 #ifdef BUILD_GTSAM_EXT_GPU
     odom.reset(new glim::OdometryEstimationGPU);
