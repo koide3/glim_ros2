@@ -10,14 +10,10 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
-#ifdef BUILD_WITH_LIVOX
-#include <livox_interfaces/msg/custom_msg.hpp>
-#endif
-
 namespace glim {
 class TimeKeeper;
 class CloudPreprocessor;
-class OdometryEstimationBase;
+class AsyncOdometryEstimation;
 class AsyncSubMapping;
 class AsyncGlobalMapping;
 class StandardViewer;
@@ -37,12 +33,8 @@ public:
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
   void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
-#ifdef BUILD_WITH_LIVOX
-  void livox_points_callback(const livox_interfaces::msg::CustomMsg::ConstSharedPtr msg);
-#endif
-
   bool ok() const;
-  void wait();
+  void wait(bool auto_quit = false);
 
   void save(const std::string& path);
 
@@ -54,15 +46,15 @@ private:
   std::any image_sub;
   std::any points_sub;
 
-  double latest_imu_stamp;
-  std::deque<std::shared_ptr<const glim::RawPoints>> frame_queue;
-
   std::unique_ptr<glim::TimeKeeper> time_keeper;
   std::unique_ptr<glim::CloudPreprocessor> preprocessor;
 
-  std::shared_ptr<glim::OdometryEstimationBase> odometry_estimation;
+  std::shared_ptr<glim::AsyncOdometryEstimation> odometry_estimation;
   std::unique_ptr<glim::AsyncSubMapping> sub_mapping;
   std::unique_ptr<glim::AsyncGlobalMapping> global_mapping;
+
+  double imu_time_offset;
+  double acc_scale;
 
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;

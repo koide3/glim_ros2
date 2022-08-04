@@ -34,15 +34,18 @@
 namespace glim {
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
-  const std::string config_ros_path = ament_index_cpp::get_package_share_directory("glim_ros") + "/config/glim_ros.json";
-  std::cout << "config_ros_path:" << config_ros_path << std::endl;
-  glim::Config config_ros(config_ros_path);
+  std::string config_path = "config";
+  if (config_path[0] != '/') {
+    // config_path is relative to the glim directory
+    config_path = ament_index_cpp::get_package_share_directory("glim") + "/" + config_path;
+  }
 
-  const std::string config_path = ament_index_cpp::get_package_share_directory("glim") + config_ros.param<std::string>("glim_ros", "config_path", "/config");
-  std::cout << "config_path:" << config_path << std::endl;
+  std::cout << "config_path: " << config_path << std::endl;
   glim::GlobalConfig::instance(config_path);
+  glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
 
-  latest_imu_stamp = 0.0;
+  imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
+  acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
 
   // Viewer
   if (config_ros.param<bool>("glim_ros", "enable_viewer", true)) {
@@ -57,6 +60,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   glim::Config config_front(glim::GlobalConfig::get_config_path("config_frontend"));
   const std::string frontend_mode = config_front.param<std::string>("odometry_estimation", "frontend_mode", "CPU");
 
+  bool enable_imu = true;
   std::shared_ptr<glim::OdometryEstimationBase> odom;
   if (frontend_mode == "CPU") {
     odom.reset(new glim::OdometryEstimationCPU);
@@ -67,13 +71,14 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     RCLCPP_WARN_STREAM(this->get_logger(), "GPU frontend is selected although glim was built without GPU support!!");
 #endif
   } else if (frontend_mode == "CT") {
+    enable_imu = false;
     odom.reset(new glim::OdometryEstimationCT);
   } else {
     RCLCPP_ERROR_STREAM(this->get_logger(), "Unknown frontend mode:" << frontend_mode);
     abort();
   }
 
-  odometry_estimation = odom;
+  odometry_estimation.reset(new glim::AsyncOdometryEstimation(odom, enable_imu));
 
   // Backend
   sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
@@ -120,10 +125,8 @@ const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension
 }
 
 void GlimROS::imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
-  const double imu_acc_scale_factor = 9.80665;
-
-  const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9;
-  const Eigen::Vector3d linear_acc = imu_acc_scale_factor * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
+  const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
+  const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
   const Eigen::Vector3d angular_vel(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
 
   time_keeper->validate_imu_stamp(imu_stamp);
@@ -131,8 +134,6 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
   odometry_estimation->insert_imu(imu_stamp, linear_acc, angular_vel);
   sub_mapping->insert_imu(imu_stamp, linear_acc, angular_vel);
   global_mapping->insert_imu(imu_stamp, linear_acc, angular_vel);
-
-  latest_imu_stamp = imu_stamp;
 }
 
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
@@ -147,49 +148,17 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
   }
 
   time_keeper->process(raw_points);
-  frame_queue.push_back(raw_points);
+  auto preprocessed = preprocessor->preprocess(raw_points);
 
-  while (!frame_queue.empty() && frame_queue.front()->stamp + 0.1 < latest_imu_stamp) {
-    const auto front = frame_queue.front();
-    auto preprocessed = preprocessor->preprocess(front);
+  // note: Raw points are used only in extension modules for visualization purposes.
+  //       If you need to reduce the memory footprint, you can safely comment out the following line.
+  preprocessed->raw_points = raw_points;
 
-    for (double& intensity : preprocessed->intensities) {
-      intensity /= 128.0;
-    }
-
-    std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
-    odometry_estimation->insert_frame(preprocessed, marginalized_frames);
-    frame_queue.pop_front();
+  while (odometry_estimation->input_queue_size() > 10) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+  odometry_estimation->insert_frame(preprocessed);
 }
-
-#ifdef BUILD_WITH_LIVOX
-void GlimROS::livox_points_callback(const livox_interfaces::msg::CustomMsg::ConstSharedPtr msg) {
-  const double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9;
-  std::vector<double> times(msg->point_num);
-  std::vector<Eigen::Vector4d, Eigen::aligned_allocator<Eigen::Vector4d>> points(msg->point_num);
-
-  for (int i = 0; i < msg->point_num; i++) {
-    const auto& point = msg->points[i];
-    times[i] = point.offset_time / 1e9;
-    points[i] << point.x, point.y, point.z, 1.0;
-  }
-
-  glim_ros::RawPoints::Ptr frame(new glim_ros::RawPoints);
-  frame->stamp = stamp;
-  frame->times = times;
-  frame->points = points;
-
-  frame_queue.push_back(frame);
-
-  while (!frame_queue.empty() && frame_queue.front()->stamp + 0.1 < latest_imu_stamp) {
-    const auto front = frame_queue.front();
-    auto preprocessed = preprocessor->preprocess(front->stamp, front->times, front->points);
-    odometry_estimation->insert_frame(preprocessed);
-    frame_queue.pop_front();
-  }
-}
-#endif
 
 void GlimROS::timer_callback() {
   if (!standard_viewer->ok()) {
@@ -198,9 +167,7 @@ void GlimROS::timer_callback() {
 
   std::vector<glim::EstimationFrame::ConstPtr> estimation_frames;
   std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
-  // odometry_estimation->get_results(estimation_frames, marginalized_frames);
-
-  return;
+  odometry_estimation->get_results(estimation_frames, marginalized_frames);
 
   for (const auto& frame : marginalized_frames) {
     sub_mapping->insert_frame(frame);
@@ -213,20 +180,53 @@ void GlimROS::timer_callback() {
 }
 
 bool GlimROS::ok() const {
+#ifdef BUILD_WITH_VIEWER
   if (!standard_viewer) {
-    return true;
+    return rclcpp::ok();
   }
-  return standard_viewer->ok();
+  return standard_viewer->ok() && rclcpp::ok();
+#else
+  return rclcpp::ok();
+#endif
 }
 
-void GlimROS::wait() {
-  if (standard_viewer) {
-    standard_viewer->wait();
+void GlimROS::wait(bool auto_quit) {
+  std::cout << "odometry" << std::endl;
+  odometry_estimation->join();
+
+  if (sub_mapping && global_mapping) {
+    std::vector<glim::EstimationFrame::ConstPtr> estimation_results;
+    std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
+    odometry_estimation->get_results(estimation_results, marginalized_frames);
+    for (const auto& marginalized_frame : marginalized_frames) {
+      sub_mapping->insert_frame(marginalized_frame);
+    }
+
+    std::cout << "submap" << std::endl;
+    sub_mapping->join();
+
+    const auto submaps = sub_mapping->get_results();
+    for (const auto& submap : submaps) {
+      global_mapping->insert_submap(submap);
+    }
+    global_mapping->join();
   }
+
+#ifdef BUILD_WITH_VIEWER
+  if (!auto_quit) {
+    if (standard_viewer && rclcpp::ok()) {
+      standard_viewer->wait();
+    }
+  } else {
+    if (standard_viewer) {
+      standard_viewer->stop();
+    }
+  }
+#endif
 }
 
 void GlimROS::save(const std::string& path) {
-  // global_mapping->save(path);
+  global_mapping->save(path);
 }
 
 }  // namespace glim

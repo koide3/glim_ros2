@@ -46,15 +46,6 @@ target_link_libraries(glim_ros
 )
 rclcpp_components_register_nodes(glim_ros "glim_ros")
 
-# Optional livox dependency
-find_package(livox_interfaces QUIET)
-if(${livox_interfaces_FOUND})
-  add_definitions(-DBUILD_WITH_LIVOX)
-  target_include_directories(glim_ros PUBLIC ${livox_interfaces_INCLUDE_DIRS})
-  target_link_libraries(glim_ros ${livox_interfaces_LIBRARIES})
-endif()
-
-
 ### glim_rosnode ###
 ament_auto_add_executable(glim_rosnode
   src/glim_rosnode.cpp
@@ -88,4 +79,3 @@ target_link_libraries(offline_viewer
 )
 
 ament_auto_package()
-install(DIRECTORY config DESTINATION share/glim_ros)

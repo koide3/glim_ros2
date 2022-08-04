@@ -51,18 +51,16 @@ int main(int argc, char** argv) {
   auto glim = std::make_shared<glim::GlimROS>(options);
 
   // List topics
-  const std::string config_ros_path = ament_index_cpp::get_package_share_directory("glim_ros") + "/config/glim_ros.json";
-  glim::Config config_ros(config_ros_path);
+  glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
 
-  const auto topics = config_ros.param<std::vector<std::string>>("glim_rosbag", "topics");
-  if (!topics) {
-    std::cerr << "error: topics must be specified" << std::endl;
-    return 1;
-  }
+  const std::string imu_topic = config_ros.param<std::string>("glim_ros", "imu_topic", "/imu");
+  const std::string points_topic = config_ros.param<std::string>("glim_ros", "points_topic", "/points");
+  const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "/image");
+  std::vector<std::string> topics = {imu_topic, points_topic, image_topic};
 
   rosbag2_storage::StorageFilter filter;
   std::cout << "topics:" << std::endl;
-  for (const auto& topic : *topics) {
+  for (const auto& topic : topics) {
     std::cout << "- " << topic << std::endl;
     filter.topics.push_back(topic);
   }
@@ -96,7 +94,7 @@ int main(int argc, char** argv) {
     std::cout << "- " << bag_filename << std::endl;
   }
 
-  const double playback_speed = config_ros.param<double>("glim_rosbag", "playback_speed", 1.0);
+  const double playback_speed = config_ros.param<double>("glim_ros", "playback_speed", 10.0);
   const auto real_t0 = std::chrono::high_resolution_clock::now();
   rcutils_time_point_value_t bag_t0 = 0;
   SpeedCounter speed_counter;
@@ -137,19 +135,19 @@ int main(int argc, char** argv) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
 
-      if (topic_type == "sensor_msgs/msg/Imu") {
+      if (msg->topic_name == imu_topic) {
         auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
         imu_serialization.deserialize_message(&serialized_msg, imu_msg.get());
         glim->imu_callback(imu_msg);
-      } else if (topic_type == "sensor_msgs/msg/PointCloud2") {
+      } else if (msg->topic_name == points_topic) {
         auto points_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
         points_serialization.deserialize_message(&serialized_msg, points_msg.get());
         glim->points_callback(points_msg);
-      } else if (topic_type == "sensor_msgs/msg/Image") {
+      } else if (msg->topic_name == image_topic && topic_type == "sensor_msgs/msg/Image") {
         auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
         image_serialization.deserialize_message(&serialized_msg, image_msg.get());
         glim->image_callback(image_msg);
-      } else if (topic_type == "sensor_msgs/msg/CompressedImage") {
+      } else if (msg->topic_name == image_topic && topic_type == "sensor_msgs/msg/CompressedImage") {
         auto compressed_image_msg = std::make_shared<sensor_msgs::msg::CompressedImage>();
         compressed_image_serialization.deserialize_message(&serialized_msg, compressed_image_msg.get());
       }
@@ -175,11 +173,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  while (glim->ok()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    glim->timer_callback();
-  }
-
+  glim->wait();
   glim->save("/tmp/dump");
 
   return 0;
