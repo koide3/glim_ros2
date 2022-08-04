@@ -34,7 +34,10 @@
 namespace glim {
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
-  std::string config_path = "config";
+  std::string config_path;
+  this->declare_parameter<std::string>("config_path", "config");
+  this->get_parameter<std::string>("config_path", config_path);
+
   if (config_path[0] != '/') {
     // config_path is relative to the glim directory
     config_path = ament_index_cpp::get_package_share_directory("glim") + "/" + config_path;
