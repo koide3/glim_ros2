@@ -96,8 +96,11 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
 
   // Publish transforms
   // Odom -> IMU
+  const int sec = std::floor(new_frame->stamp);
+  const int nsec = (new_frame->stamp - sec) * 1e9;
+
   geometry_msgs::msg::TransformStamped trans;
-  trans.header.stamp = rclcpp::Time(new_frame->stamp);
+  trans.header.stamp = rclcpp::Time(sec, nsec);
   trans.header.frame_id = odom_frame_id;
   trans.child_frame_id = imu_frame_id;
   trans.transform.translation.x = T_odom_imu.translation().x();
