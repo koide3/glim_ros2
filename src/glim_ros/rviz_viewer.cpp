@@ -37,7 +37,7 @@ RvizViewer::RvizViewer(rclcpp::Node& node) {
   imu_frame_id = "imu";
   lidar_frame_id = "lidar";
   odom_frame_id = "odom";
-  world_frame_id = "world";
+  world_frame_id = "map";
 
   last_globalmap_pub_time = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
   trajectory.reset(new TrajectoryManager);
