@@ -117,7 +117,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
         auto ext_module_ros = std::dynamic_pointer_cast<ExtensionModuleROS2>(ext_module);
         if (ext_module_ros) {
-          const auto subs = ext_module_ros->create_subscriptions();
+          const auto subs = ext_module_ros->create_subscriptions(*this);
           extension_subs.insert(extension_subs.end(), subs.begin(), subs.end());
         }
       }
