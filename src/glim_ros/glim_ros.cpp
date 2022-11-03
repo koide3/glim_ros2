@@ -8,6 +8,7 @@
 #include <boost/format.hpp>
 
 #include <rclcpp/rclcpp.hpp>
+#include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <cv_bridge/cv_bridge.h>
@@ -30,6 +31,7 @@
 #include <glim/backend/sub_mapping.hpp>
 #include <glim/backend/global_mapping.hpp>
 #include <glim/viewer/standard_viewer.hpp>
+#include <glim_ros/rviz_viewer.hpp>
 
 namespace glim {
 
@@ -53,6 +55,10 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   // Viewer
   if (config_ros.param<bool>("glim_ros", "enable_viewer", true)) {
     standard_viewer.reset(new glim::StandardViewer);
+  }
+
+  if (config_ros.param<bool>("glim_ros", "enable_rviz", true)) {
+    extension_modules.push_back(std::make_shared<RvizViewer>(*this));
   }
 
   // Preprocessing
@@ -93,9 +99,13 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     std::cout << console::bold_red << "Extension modules are enabled!!" << console::reset << std::endl;
     std::cout << console::bold_red << "You must carefully check and follow the licenses of ext modules" << console::reset << std::endl;
 
-    const std::string config_ext_path = ament_index_cpp::get_package_share_directory("glim_ext") + "/config";
-    std::cout << "config_ext_path: " << config_ext_path << std::endl;
-    glim::GlobalConfig::instance()->override_param<std::string>("global", "config_ext", config_ext_path);
+    try {
+      const std::string config_ext_path = ament_index_cpp::get_package_share_directory("glim_ext") + "/config";
+      std::cout << "config_ext_path: " << config_ext_path << std::endl;
+      glim::GlobalConfig::instance()->override_param<std::string>("global", "config_ext", config_ext_path);
+    } catch (ament_index_cpp::PackageNotFoundError& e) {
+      std::cerr << console::yellow << "warning: glim_ext package path was not found!!" << console::reset << std::endl;
+    }
 
     for (const auto& extension : *extensions) {
       auto ext_module = ExtensionModule::load(extension);
@@ -107,7 +117,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
         auto ext_module_ros = std::dynamic_pointer_cast<ExtensionModuleROS2>(ext_module);
         if (ext_module_ros) {
-          const auto subs = ext_module_ros->create_subscriptions();
+          const auto subs = ext_module_ros->create_subscriptions(*this);
           extension_subs.insert(extension_subs.end(), subs.begin(), subs.end());
         }
       }
@@ -164,9 +174,11 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
 }
 
 void GlimROS::timer_callback() {
+#ifdef BUILD_WITH_VIEWER
   if (!standard_viewer->ok()) {
     rclcpp::shutdown();
   }
+#endif
 
   std::vector<glim::EstimationFrame::ConstPtr> estimation_frames;
   std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;

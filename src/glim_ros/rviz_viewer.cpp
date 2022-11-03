@@ -30,14 +30,13 @@ RvizViewer::RvizViewer(rclcpp::Node& node) {
     false};
   rclcpp::QoS map_qos(rclcpp::QoSInitialization(map_qos_profile.history, map_qos_profile.depth), map_qos_profile);
   map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/map", map_qos);
-
   odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("/glim_ros/odom", 10);
   pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("/glim_ros/pose", 10);
 
   imu_frame_id = "imu";
   lidar_frame_id = "lidar";
   odom_frame_id = "odom";
-  world_frame_id = "world";
+  world_frame_id = "map";
 
   last_globalmap_pub_time = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
   trajectory.reset(new TrajectoryManager);
@@ -96,8 +95,11 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
 
   // Publish transforms
   // Odom -> IMU
+  const int sec = std::floor(new_frame->stamp);
+  const int nsec = (new_frame->stamp - sec) * 1e9;
+
   geometry_msgs::msg::TransformStamped trans;
-  trans.header.stamp = rclcpp::Time(new_frame->stamp);
+  trans.header.stamp = rclcpp::Time(sec, nsec);
   trans.header.frame_id = odom_frame_id;
   trans.child_frame_id = imu_frame_id;
   trans.transform.translation.x = T_odom_imu.translation().x();
