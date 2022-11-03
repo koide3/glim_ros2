@@ -25,7 +25,7 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: glim
           submodules: recursive
-          
+
       - name: Docker login
         continue-on-error: true
         uses: docker/login-action@v1
@@ -37,14 +37,14 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           file: ${{github.workspace}}/glim_ros2/docker/galactic/Dockerfile
-          context: .
           tags: koide3/glim_ros:galactic
+          context: .
           push: true
 
       - name: Docker build
         uses: docker/build-push-action@v2
         with:
-          file: ${{github.workspace}}/glim_ros2/docker/galactic_gpu/Dockerfile
+          file: ${{github.workspace}}/glim_ros2/docker/galactic_cuda11.2/Dockerfile
+          tags: koide3/glim_ros:galactic_cuda11.2
           context: .
-          tags: koide3/glim_ros:galactic_gpu
           push: true
