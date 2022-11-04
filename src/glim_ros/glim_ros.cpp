@@ -90,8 +90,12 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   odometry_estimation.reset(new glim::AsyncOdometryEstimation(odom, enable_imu));
 
   // Backend
-  sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
-  global_mapping.reset(new glim::AsyncGlobalMapping(std::shared_ptr<glim::GlobalMapping>(new glim::GlobalMapping)));
+  if (config_ros.param<bool>("glim_ros", "enable_local_mapping", true)) {
+    sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
+    if (config_ros.param<bool>("glim_ros", "enable_global_mapping", true)) {
+      global_mapping.reset(new glim::AsyncGlobalMapping(std::shared_ptr<glim::GlobalMapping>(new glim::GlobalMapping)));
+    }
+  }
 
   // Extention modules
   const auto extensions = config_ros.param<std::vector<std::string>>("glim_ros", "extension_modules");
@@ -145,8 +149,12 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
   time_keeper->validate_imu_stamp(imu_stamp);
 
   odometry_estimation->insert_imu(imu_stamp, linear_acc, angular_vel);
-  sub_mapping->insert_imu(imu_stamp, linear_acc, angular_vel);
-  global_mapping->insert_imu(imu_stamp, linear_acc, angular_vel);
+  if (sub_mapping) {
+    sub_mapping->insert_imu(imu_stamp, linear_acc, angular_vel);
+  }
+  if (global_mapping) {
+    global_mapping->insert_imu(imu_stamp, linear_acc, angular_vel);
+  }
 }
 
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
@@ -184,13 +192,17 @@ void GlimROS::timer_callback() {
   std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
   odometry_estimation->get_results(estimation_frames, marginalized_frames);
 
-  for (const auto& frame : marginalized_frames) {
-    sub_mapping->insert_frame(frame);
-  }
+  if (sub_mapping) {
+    for (const auto& frame : marginalized_frames) {
+      sub_mapping->insert_frame(frame);
+    }
 
-  auto submaps = sub_mapping->get_results();
-  for (const auto& submap : submaps) {
-    global_mapping->insert_submap(submap);
+    auto submaps = sub_mapping->get_results();
+    if (global_mapping) {
+      for (const auto& submap : submaps) {
+        global_mapping->insert_submap(submap);
+      }
+    }
   }
 }
 
@@ -209,7 +221,7 @@ void GlimROS::wait(bool auto_quit) {
   std::cout << "odometry" << std::endl;
   odometry_estimation->join();
 
-  if (sub_mapping && global_mapping) {
+  if (sub_mapping) {
     std::vector<glim::EstimationFrame::ConstPtr> estimation_results;
     std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
     odometry_estimation->get_results(estimation_results, marginalized_frames);
@@ -221,10 +233,12 @@ void GlimROS::wait(bool auto_quit) {
     sub_mapping->join();
 
     const auto submaps = sub_mapping->get_results();
-    for (const auto& submap : submaps) {
-      global_mapping->insert_submap(submap);
+    if (global_mapping) {
+      for (const auto& submap : submaps) {
+        global_mapping->insert_submap(submap);
+      }
+      global_mapping->join();
     }
-    global_mapping->join();
   }
 
 #ifdef BUILD_WITH_VIEWER
