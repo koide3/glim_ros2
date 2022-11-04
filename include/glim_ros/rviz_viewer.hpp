@@ -15,6 +15,7 @@
 #include <glim/frontend/estimation_frame.hpp>
 #include <glim/backend/sub_map.hpp>
 #include <glim/util/extension_module.hpp>
+#include <glim/util/extension_module_ros2.hpp>
 
 namespace glim {
 
@@ -23,10 +24,12 @@ class TrajectoryManager;
 /**
  * @brief Rviz-based viewer
  */
-class RvizViewer : public ExtensionModule {
+class RvizViewer : public ExtensionModuleROS2 {
 public:
-  RvizViewer(rclcpp::Node& node);
+  RvizViewer();
   ~RvizViewer();
+
+  virtual std::vector<GenericTopicSubscription::Ptr> create_subscriptions(rclcpp::Node& node) override;
 
 private:
   void set_callbacks();

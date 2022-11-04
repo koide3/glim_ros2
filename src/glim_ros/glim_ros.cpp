@@ -30,8 +30,6 @@
 #include <glim/backend/async_global_mapping.hpp>
 #include <glim/backend/sub_mapping.hpp>
 #include <glim/backend/global_mapping.hpp>
-#include <glim/viewer/standard_viewer.hpp>
-#include <glim_ros/rviz_viewer.hpp>
 
 namespace glim {
 
@@ -51,17 +49,6 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
-
-  // Viewer
-  if (config_ros.param<bool>("glim_ros", "enable_viewer", true)) {
-#ifdef BUILD_WITH_VIEWER
-    extension_modules.emplace_back(std::make_shared<StandardViewer>());
-#endif
-  }
-
-  if (config_ros.param<bool>("glim_ros", "enable_rviz", true)) {
-    extension_modules.emplace_back(std::make_shared<RvizViewer>(*this));
-  }
 
   // Preprocessing
   time_keeper.reset(new glim::TimeKeeper);
@@ -102,15 +89,21 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   // Extention modules
   const auto extensions = config_ros.param<std::vector<std::string>>("glim_ros", "extension_modules");
   if (extensions && !extensions->empty()) {
-    std::cout << console::bold_red << "Extension modules are enabled!!" << console::reset << std::endl;
-    std::cout << console::bold_red << "You must carefully check and follow the licenses of ext modules" << console::reset << std::endl;
+    for (const auto& extension : *extensions) {
+      if (extension.find("viewer") != std::string::npos) {
+        std::cout << console::bold_red << "Extension modules are enabled!!" << console::reset << std::endl;
+        std::cout << console::bold_red << "You must carefully check and follow the licenses of ext modules" << console::reset << std::endl;
 
-    try {
-      const std::string config_ext_path = ament_index_cpp::get_package_share_directory("glim_ext") + "/config";
-      std::cout << "config_ext_path: " << config_ext_path << std::endl;
-      glim::GlobalConfig::instance()->override_param<std::string>("global", "config_ext", config_ext_path);
-    } catch (ament_index_cpp::PackageNotFoundError& e) {
-      std::cerr << console::yellow << "warning: glim_ext package path was not found!!" << console::reset << std::endl;
+        try {
+          const std::string config_ext_path = ament_index_cpp::get_package_share_directory("glim_ext") + "/config";
+          std::cout << "config_ext_path: " << config_ext_path << std::endl;
+          glim::GlobalConfig::instance()->override_param<std::string>("global", "config_ext", config_ext_path);
+        } catch (ament_index_cpp::PackageNotFoundError& e) {
+          std::cerr << console::yellow << "warning: glim_ext package path was not found!!" << console::reset << std::endl;
+        }
+
+        break;
+      }
     }
 
     for (const auto& extension : *extensions) {
