@@ -39,7 +39,6 @@ private:
   std::chrono::high_resolution_clock::time_point last_real_time;
 };
 
-
 int main(int argc, char** argv) {
   if (argc < 2) {
     std::cerr << "usage: glim_rosbag input_rosbag_path" << std::endl;
@@ -118,7 +117,7 @@ int main(int argc, char** argv) {
     rclcpp::Serialization<sensor_msgs::msg::CompressedImage> compressed_image_serialization;
 
     while (reader.has_next()) {
-      if (!glim->ok()) {
+      if (!rclcpp::ok()) {
         return false;
       }
 

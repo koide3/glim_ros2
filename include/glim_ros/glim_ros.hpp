@@ -16,8 +16,6 @@ class CloudPreprocessor;
 class AsyncOdometryEstimation;
 class AsyncSubMapping;
 class AsyncGlobalMapping;
-class StandardViewer;
-struct RawPoints;
 
 class ExtensionModule;
 class GenericTopicSubscription;
@@ -41,11 +39,6 @@ public:
   const std::vector<std::shared_ptr<GenericTopicSubscription>>& extension_subscriptions();
 
 private:
-  std::any timer;
-  std::any imu_sub;
-  std::any image_sub;
-  std::any points_sub;
-
   std::unique_ptr<glim::TimeKeeper> time_keeper;
   std::unique_ptr<glim::CloudPreprocessor> preprocessor;
 
@@ -59,8 +52,6 @@ private:
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
   std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
-
-  std::unique_ptr<glim::StandardViewer> standard_viewer;
 };
 
-}  // namespace glim_ros
+}  // namespace glim

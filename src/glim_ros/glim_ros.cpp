@@ -54,11 +54,13 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   // Viewer
   if (config_ros.param<bool>("glim_ros", "enable_viewer", true)) {
-    standard_viewer.reset(new glim::StandardViewer);
+#ifdef BUILD_WITH_VIEWER
+    extension_modules.emplace_back(std::make_shared<StandardViewer>());
+#endif
   }
 
   if (config_ros.param<bool>("glim_ros", "enable_rviz", true)) {
-    extension_modules.push_back(std::make_shared<RvizViewer>(*this));
+    extension_modules.emplace_back(std::make_shared<RvizViewer>(*this));
   }
 
   // Preprocessing
@@ -127,14 +129,10 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
       }
     }
   }
-
-  timer = this->create_wall_timer(std::chrono::milliseconds(1), std::bind(&GlimROS::timer_callback, this));
 }
 
 GlimROS::~GlimROS() {
-  if (standard_viewer) {
-    standard_viewer->stop();
-  }
+  extension_modules.clear();
 }
 
 const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension_subscriptions() {
@@ -182,11 +180,11 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
 }
 
 void GlimROS::timer_callback() {
-#ifdef BUILD_WITH_VIEWER
-  if (!standard_viewer->ok()) {
-    rclcpp::shutdown();
+  for (const auto& ext_module : extension_modules) {
+    if (!ext_module->ok()) {
+      rclcpp::shutdown();
+    }
   }
-#endif
 
   std::vector<glim::EstimationFrame::ConstPtr> estimation_frames;
   std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
@@ -204,17 +202,6 @@ void GlimROS::timer_callback() {
       }
     }
   }
-}
-
-bool GlimROS::ok() const {
-#ifdef BUILD_WITH_VIEWER
-  if (!standard_viewer) {
-    return rclcpp::ok();
-  }
-  return standard_viewer->ok() && rclcpp::ok();
-#else
-  return rclcpp::ok();
-#endif
 }
 
 void GlimROS::wait(bool auto_quit) {
@@ -241,17 +228,14 @@ void GlimROS::wait(bool auto_quit) {
     }
   }
 
-#ifdef BUILD_WITH_VIEWER
   if (!auto_quit) {
-    if (standard_viewer && rclcpp::ok()) {
-      standard_viewer->wait();
-    }
-  } else {
-    if (standard_viewer) {
-      standard_viewer->stop();
+    bool terminate = false;
+    while (!terminate && rclcpp::ok()) {
+      for (const auto& ext_module : extension_modules) {
+        terminate |= (!ext_module->ok());
+      }
     }
   }
-#endif
 }
 
 void GlimROS::save(const std::string& path) {

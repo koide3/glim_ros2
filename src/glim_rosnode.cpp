@@ -18,8 +18,9 @@ int main(int argc, char** argv) {
 
   // Create callbacks
   using std::placeholders::_1;
-  const auto imu_callback = glim->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 1000, [&](const sensor_msgs::msg::Imu::SharedPtr msg) { glim->imu_callback(msg); });
-  const auto points_callback =
+  const auto timer = glim->create_wall_timer(std::chrono::milliseconds(1), [&]() { glim->timer_callback(); });
+  const auto imu_sub = glim->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 1000, [&](const sensor_msgs::msg::Imu::SharedPtr msg) { glim->imu_callback(msg); });
+  const auto points_sub =
     glim->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, 30, [&](const sensor_msgs::msg::PointCloud2::SharedPtr msg) { glim->points_callback(msg); });
 
   for (const auto& sub : glim->extension_subscriptions()) {
