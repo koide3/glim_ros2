@@ -39,7 +39,7 @@ target_link_libraries(glim_ros
   ${GTSAM_LIBRARIES}
   ${Iridescence_LIBRARIES}
 )
-rclcpp_components_register_nodes(glim_ros "glim_ros")
+rclcpp_components_register_nodes(glim_ros "glim::GlimROS")
 
 ament_auto_add_library(rviz_viewer SHARED
   src/glim_ros/rviz_viewer.cpp

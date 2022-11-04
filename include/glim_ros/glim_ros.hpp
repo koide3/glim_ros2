@@ -52,6 +52,12 @@ private:
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
   std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
+
+  // ROS-related
+  std::any timer;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr points_sub;
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub;
 };
 
 }  // namespace glim

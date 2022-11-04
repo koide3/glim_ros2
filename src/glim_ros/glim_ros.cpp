@@ -8,6 +8,7 @@
 #include <boost/format.hpp>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_components/register_node_macro.hpp>
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
@@ -90,7 +91,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   const auto extensions = config_ros.param<std::vector<std::string>>("glim_ros", "extension_modules");
   if (extensions && !extensions->empty()) {
     for (const auto& extension : *extensions) {
-      if (extension.find("viewer") != std::string::npos) {
+      if (extension.find("viewer") == std::string::npos) {
         std::cout << console::bold_red << "Extension modules are enabled!!" << console::reset << std::endl;
         std::cout << console::bold_red << "You must carefully check and follow the licenses of ext modules" << console::reset << std::endl;
 
@@ -121,6 +122,19 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
         }
       }
     }
+  }
+
+  // ROS-related
+  const std::string imu_topic = config_ros.param<std::string>("glim_ros", "imu_topic", "");
+  const std::string points_topic = config_ros.param<std::string>("glim_ros", "points_topic", "");
+  const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "");
+  timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
+  imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 1000, [this](const sensor_msgs::msg::Imu::SharedPtr msg) { imu_callback(msg); });
+  points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, 30, [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) { points_callback(msg); });
+
+  for (const auto& sub : this->extension_subscriptions()) {
+    std::cout << "subscribe to " << sub->topic << std::endl;
+    sub->create_subscriber(*this);
   }
 }
 
@@ -236,3 +250,5 @@ void GlimROS::save(const std::string& path) {
 }
 
 }  // namespace glim
+
+RCLCPP_COMPONENTS_REGISTER_NODE(glim::GlimROS);
