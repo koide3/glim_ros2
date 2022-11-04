@@ -28,7 +28,7 @@ COPY glim /root/ros2_ws/src/glim
 COPY glim_ros2 /root/ros2_ws/src/glim_ros2
 
 WORKDIR /root/ros2_ws
-RUN /bin/bash -c '. /opt/ros/galactic/setup.bash; colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_CUDA=OFF -DBUILD_WITH_VIEWER=ON'
+RUN /bin/bash -c '. /opt/ros/galactic/setup.bash; colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_CUDA=ON -DBUILD_WITH_VIEWER=ON'
 
 WORKDIR /root/ros2_ws/src/glim
 
