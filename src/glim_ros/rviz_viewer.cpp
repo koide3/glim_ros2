@@ -46,8 +46,8 @@ RvizViewer::~RvizViewer() {
 std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclcpp::Node& node) {
   tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(node);
 
-  points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/points", 10);
-  aligned_points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/aligned_points", 10);
+  points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/points", 10);
+  aligned_points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_points", 10);
 
   rmw_qos_profile_t map_qos_profile = {
     RMW_QOS_POLICY_HISTORY_KEEP_LAST,
@@ -60,9 +60,9 @@ std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclc
     RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
     false};
   rclcpp::QoS map_qos(rclcpp::QoSInitialization(map_qos_profile.history, map_qos_profile.depth), map_qos_profile);
-  map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("/glim_ros/map", map_qos);
-  odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("/glim_ros/odom", 10);
-  pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("/glim_ros/pose", 10);
+  map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/map", map_qos);
+  odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom", 10);
+  pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 10);
 
   return {};
 }
@@ -99,11 +99,10 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
 
   // Publish transforms
   // Odom -> IMU
-  const int sec = std::floor(new_frame->stamp);
-  const int nsec = (new_frame->stamp - sec) * 1e9;
+  const auto stamp = from_sec(new_frame->stamp);
 
   geometry_msgs::msg::TransformStamped trans;
-  trans.header.stamp = rclcpp::Time(sec, nsec);
+  trans.header.stamp = stamp;
   trans.header.frame_id = odom_frame_id;
   trans.child_frame_id = imu_frame_id;
   trans.transform.translation.x = T_odom_imu.translation().x();
@@ -142,7 +141,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   if (odom_pub->get_subscription_count()) {
     // Publish sensor pose (without loop closure)
     nav_msgs::msg::Odometry odom;
-    odom.header.stamp = rclcpp::Time(new_frame->stamp);
+    odom.header.stamp = stamp;
     odom.header.frame_id = odom_frame_id;
     odom.child_frame_id = imu_frame_id;
     odom.pose.pose.position.x = T_odom_imu.translation().x();
@@ -158,7 +157,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   if (pose_pub->get_subscription_count()) {
     // Publish sensor pose (with loop closure)
     geometry_msgs::msg::PoseStamped pose;
-    pose.header.stamp = rclcpp::Time(new_frame->stamp);
+    pose.header.stamp = stamp;
     pose.header.frame_id = world_frame_id;
     pose.pose.position.x = T_world_imu.translation().x();
     pose.pose.position.y = T_world_imu.translation().y();
