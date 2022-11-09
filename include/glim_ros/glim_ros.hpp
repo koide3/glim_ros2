@@ -6,6 +6,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -54,10 +55,10 @@ private:
   std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
 
   // ROS-related
-  std::any timer;
+  rclcpp::TimerBase::SharedPtr timer;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr points_sub;
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub;
+  image_transport::Subscriber image_sub;
 };
 
 }  // namespace glim

@@ -131,6 +131,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 1000, [this](const sensor_msgs::msg::Imu::SharedPtr msg) { imu_callback(msg); });
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, 30, [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) { points_callback(msg); });
+  image_sub = image_transport::create_subscription(this, image_topic, [this](const sensor_msgs::msg::Image::ConstSharedPtr& image_msg) { image_callback(image_msg); }, "raw");
 
   for (const auto& sub : this->extension_subscriptions()) {
     std::cout << "subscribe to " << sub->topic << std::endl;
@@ -164,6 +165,15 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
 
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
   auto cv_image = cv_bridge::toCvCopy(msg, "bgr8");
+
+  const double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9;
+  odometry_estimation->insert_image(stamp, cv_image->image);
+  if (sub_mapping) {
+    sub_mapping->insert_image(stamp, cv_image->image);
+  }
+  if (global_mapping) {
+    global_mapping->insert_image(stamp, cv_image->image);
+  }
 }
 
 void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
