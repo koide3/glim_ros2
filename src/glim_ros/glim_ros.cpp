@@ -5,6 +5,7 @@
 #include <deque>
 #include <thread>
 #include <iostream>
+#include <functional>
 #include <boost/format.hpp>
 
 #include <rclcpp/rclcpp.hpp>
@@ -125,13 +126,18 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   }
 
   // ROS-related
+  using std::placeholders::_1;
   const std::string imu_topic = config_ros.param<std::string>("glim_ros", "imu_topic", "");
   const std::string points_topic = config_ros.param<std::string>("glim_ros", "points_topic", "");
   const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "");
   timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
-  imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 1000, [this](const sensor_msgs::msg::Imu::SharedPtr msg) { imu_callback(msg); });
-  points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, 30, [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) { points_callback(msg); });
-  image_sub = image_transport::create_subscription(this, image_topic, [this](const sensor_msgs::msg::Image::ConstSharedPtr& image_msg) { image_callback(image_msg); }, "raw");
+
+  auto imu_qos = rclcpp::SensorDataQoS();
+  imu_qos.get_rmw_qos_profile().depth = 100;
+
+  imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
+  points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
+  image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "compressed", rmw_qos_profile_sensor_data);
 
   for (const auto& sub : this->extension_subscriptions()) {
     std::cout << "subscribe to " << sub->topic << std::endl;
@@ -147,7 +153,7 @@ const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension
   return extension_subs;
 }
 
-void GlimROS::imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
+void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
   const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
   const Eigen::Vector3d angular_vel(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);

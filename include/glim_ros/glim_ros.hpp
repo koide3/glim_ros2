@@ -28,7 +28,7 @@ public:
 
   void timer_callback();
 
-  void imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr msg);
+  void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
   void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
