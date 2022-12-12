@@ -32,9 +32,7 @@ public:
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
   void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
-  bool ok() const;
   void wait(bool auto_quit = false);
-
   void save(const std::string& path);
 
   const std::vector<std::shared_ptr<GenericTopicSubscription>>& extension_subscriptions();

@@ -130,6 +130,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   const std::string imu_topic = config_ros.param<std::string>("glim_ros", "imu_topic", "");
   const std::string points_topic = config_ros.param<std::string>("glim_ros", "points_topic", "");
   const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "");
+
   timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
 
   auto imu_qos = rclcpp::SensorDataQoS();
@@ -137,7 +138,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
-  image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "compressed", rmw_qos_profile_sensor_data);
+  image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", rmw_qos_profile_sensor_data);
 
   for (const auto& sub : this->extension_subscriptions()) {
     std::cout << "subscribe to " << sub->topic << std::endl;
