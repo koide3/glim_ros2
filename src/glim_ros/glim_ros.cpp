@@ -7,6 +7,7 @@
 #include <iostream>
 #include <functional>
 #include <boost/format.hpp>
+#include <spdlog/spdlog.h>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -45,9 +46,14 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     config_path = ament_index_cpp::get_package_share_directory("glim") + "/" + config_path;
   }
 
-  std::cout << "config_path: " << config_path << std::endl;
+  spdlog::info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
+
+  if (config_ros.param<bool>("glim_ros", "debug", false)) {
+    spdlog::info("enable debug printing");
+    spdlog::set_level(spdlog::level::debug);
+  }
 
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
@@ -63,18 +69,21 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   bool enable_imu = true;
   std::shared_ptr<glim::OdometryEstimationBase> odom;
   if (frontend_mode == "CPU") {
+    spdlog::info("use CPU-based Range-IMU odometry estimation");
     odom.reset(new glim::OdometryEstimationCPU);
   } else if (frontend_mode == "GPU") {
+    spdlog::info("use GPU-based Range-IMU odometry estimation");
 #ifdef BUILD_GTSAM_EXT_GPU
     odom.reset(new glim::OdometryEstimationGPU);
 #else
     RCLCPP_WARN_STREAM(this->get_logger(), "GPU frontend is selected although glim was built without GPU support!!");
 #endif
   } else if (frontend_mode == "CT") {
+    spdlog::info("use CPU-based CT-ICP odometry estimation");
     enable_imu = false;
     odom.reset(new glim::OdometryEstimationCT);
   } else {
-    RCLCPP_ERROR_STREAM(this->get_logger(), "Unknown frontend mode:" << frontend_mode);
+    spdlog::critical("unknown odometry estimation mode: {}", frontend_mode);
     abort();
   }
 
@@ -82,8 +91,10 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   // Backend
   if (config_ros.param<bool>("glim_ros", "enable_local_mapping", true)) {
+    spdlog::info("enable local mapping");
     sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
     if (config_ros.param<bool>("glim_ros", "enable_global_mapping", true)) {
+      spdlog::info("enable global mapping");
       global_mapping.reset(new glim::AsyncGlobalMapping(std::shared_ptr<glim::GlobalMapping>(new glim::GlobalMapping)));
     }
   }
@@ -93,15 +104,15 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   if (extensions && !extensions->empty()) {
     for (const auto& extension : *extensions) {
       if (extension.find("viewer") == std::string::npos) {
-        std::cout << console::bold_red << "Extension modules are enabled!!" << console::reset << std::endl;
-        std::cout << console::bold_red << "You must carefully check and follow the licenses of ext modules" << console::reset << std::endl;
+        spdlog::warn("Extension modules are enabled!!");
+        spdlog::warn("You must carefully check and follow the licenses of ext modules");
 
         try {
           const std::string config_ext_path = ament_index_cpp::get_package_share_directory("glim_ext") + "/config";
-          std::cout << "config_ext_path: " << config_ext_path << std::endl;
+          spdlog::info("config_ext_path: {}", config_ext_path);
           glim::GlobalConfig::instance()->override_param<std::string>("global", "config_ext", config_ext_path);
         } catch (ament_index_cpp::PackageNotFoundError& e) {
-          std::cerr << console::yellow << "warning: glim_ext package path was not found!!" << console::reset << std::endl;
+          spdlog::warn("glim_ext package path was not found!!");
         }
 
         break;
@@ -109,9 +120,10 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     }
 
     for (const auto& extension : *extensions) {
+      spdlog::info("load {}", extension);
       auto ext_module = ExtensionModule::load(extension);
       if (ext_module == nullptr) {
-        std::cerr << console::bold_red << "error: failed to load " << extension << console::reset << std::endl;
+        spdlog::error("failed to load {}", extension);
         continue;
       } else {
         extension_modules.push_back(ext_module);
@@ -141,12 +153,13 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", rmw_qos_profile_sensor_data);
 
   for (const auto& sub : this->extension_subscriptions()) {
-    std::cout << "subscribe to " << sub->topic << std::endl;
+    spdlog::debug("subscribe to {}", sub->topic);
     sub->create_subscriber(*this);
   }
 }
 
 GlimROS::~GlimROS() {
+  spdlog::debug("quit");
   extension_modules.clear();
 }
 
@@ -155,6 +168,8 @@ const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension
 }
 
 void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+  spdlog::debug("IMU: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+
   const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
   const Eigen::Vector3d angular_vel(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
@@ -171,6 +186,8 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
 }
 
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
+  spdlog::debug("image: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+
   auto cv_image = cv_bridge::toCvCopy(msg, "bgr8");
 
   const double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9;
@@ -184,9 +201,11 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
 }
 
 void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+  spdlog::debug("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+
   auto raw_points = glim::extract_raw_points(msg);
   if (raw_points == nullptr) {
-    RCLCPP_WARN_STREAM(this->get_logger(), "failed to extract points from message");
+    spdlog::warn("failed to extract points from message");
     return;
   }
 
@@ -229,7 +248,7 @@ void GlimROS::timer_callback() {
 }
 
 void GlimROS::wait(bool auto_quit) {
-  std::cout << "odometry" << std::endl;
+  spdlog::info("waiting for odometry estimation");
   odometry_estimation->join();
 
   if (sub_mapping) {
@@ -240,7 +259,7 @@ void GlimROS::wait(bool auto_quit) {
       sub_mapping->insert_frame(marginalized_frame);
     }
 
-    std::cout << "submap" << std::endl;
+    spdlog::info("waiting for local mapping");
     sub_mapping->join();
 
     const auto submaps = sub_mapping->get_results();
@@ -248,6 +267,7 @@ void GlimROS::wait(bool auto_quit) {
       for (const auto& submap : submaps) {
         global_mapping->insert_submap(submap);
       }
+      spdlog::info("waiting for global mapping");
       global_mapping->join();
     }
   }
