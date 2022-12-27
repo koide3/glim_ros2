@@ -1,4 +1,5 @@
 #include <iostream>
+#include <spdlog/spdlog.h>
 #include <rclcpp/rclcpp.hpp>
 
 #include <glim_ros/glim_ros.hpp>

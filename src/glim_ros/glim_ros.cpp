@@ -8,6 +8,8 @@
 #include <functional>
 #include <boost/format.hpp>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -20,6 +22,7 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include <glim/util/config.hpp>
+#include <glim/util/logging.hpp>
 #include <glim/util/time_keeper.hpp>
 #include <glim/util/ros_cloud_converter.hpp>
 #include <glim/util/extension_module.hpp>
@@ -37,6 +40,29 @@
 namespace glim {
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
+  bool debug = false;
+  this->declare_parameter<bool>("debug", false);
+  this->get_parameter<bool>("debug", debug);
+
+  if (debug) {
+    spdlog::info("enable debug printing");
+    auto logger = spdlog::default_logger();
+    logger->set_level(spdlog::level::trace);
+
+    if (!logger->sinks().empty()) {
+      auto console_sink = logger->sinks()[0];
+      console_sink->set_level(spdlog::level::debug);
+    }
+
+    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/tmp/glim_log.log", true);
+    file_sink->set_level(spdlog::level::trace);
+    logger->sinks().push_back(file_sink);
+
+    // Share the default logger across libraries
+    // Not sure if this is a correct way
+    glim::set_default_logger(logger);
+  }
+
   std::string config_path;
   this->declare_parameter<std::string>("config_path", "config");
   this->get_parameter<std::string>("config_path", config_path);
@@ -49,11 +75,6 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   spdlog::info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
-
-  if (config_ros.param<bool>("glim_ros", "debug", false)) {
-    spdlog::info("enable debug printing");
-    spdlog::set_level(spdlog::level::debug);
-  }
 
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
@@ -168,7 +189,7 @@ const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension
 }
 
 void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-  spdlog::debug("IMU: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  spdlog::trace("IMU: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
 
   const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
@@ -186,7 +207,7 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
 }
 
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
-  spdlog::debug("image: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  spdlog::trace("image: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
 
   auto cv_image = cv_bridge::toCvCopy(msg, "bgr8");
 
@@ -201,7 +222,7 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
 }
 
 void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
-  spdlog::debug("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  spdlog::trace("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
 
   auto raw_points = glim::extract_raw_points(msg);
   if (raw_points == nullptr) {
