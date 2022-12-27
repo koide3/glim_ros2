@@ -1,6 +1,7 @@
 #include <glob.h>
 #include <chrono>
 #include <iostream>
+#include <spdlog/spdlog.h>
 #include <boost/format.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rosbag2_cpp/reader.hpp>
@@ -58,16 +59,16 @@ int main(int argc, char** argv) {
   std::vector<std::string> topics = {imu_topic, points_topic, image_topic};
 
   rosbag2_storage::StorageFilter filter;
-  std::cout << "topics:" << std::endl;
+  spdlog::info("topics:");
   for (const auto& topic : topics) {
-    std::cout << "- " << topic << std::endl;
+    spdlog::info("- {}", topic);
     filter.topics.push_back(topic);
   }
 
   //
   std::unordered_map<std::string, std::vector<glim::GenericTopicSubscription::Ptr>> subscription_map;
   for (const auto& sub : glim->extension_subscriptions()) {
-    std::cout << "- ext    :" << sub->topic << std::endl;
+    spdlog::info("- {} (ext)", sub->topic);
     filter.topics.push_back(sub->topic);
     subscription_map[sub->topic].push_back(sub);
   }
@@ -88,9 +89,9 @@ int main(int argc, char** argv) {
   }
   std::sort(bag_filenames.begin(), bag_filenames.end());
 
-  std::cout << "bag_filenames:" << std::endl;
+  spdlog::info("bag_filenames:");
   for (const auto& bag_filename : bag_filenames) {
-    std::cout << "- " << bag_filename << std::endl;
+    spdlog::info("- {}", bag_filename);
   }
 
   const double playback_speed = config_ros.param<double>("glim_ros", "playback_speed", 10.0);
@@ -100,7 +101,7 @@ int main(int argc, char** argv) {
 
   // Bag read function
   const auto read_bag = [&](const std::string& bag_filename) {
-    std::cout << "opening " << bag_filename << std::endl;
+    spdlog::info("opening {}", bag_filename);
     rosbag2_cpp::Reader reader;
     reader.open(bag_filename);
     reader.set_filter(filter);
