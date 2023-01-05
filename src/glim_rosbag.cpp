@@ -161,6 +161,15 @@ int main(int argc, char** argv) {
 
       glim->timer_callback();
       speed_counter.update(msg->time_stamp / 1e9);
+
+      const auto t0 = std::chrono::high_resolution_clock::now();
+      while (glim->needs_wait()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (std::chrono::high_resolution_clock::now() - t0 > std::chrono::seconds(1)) {
+          spdlog::warn("throttling timeout (an extension module may be hanged)");
+          break;
+        }
+      }
     }
 
     return true;
@@ -173,7 +182,11 @@ int main(int argc, char** argv) {
     }
   }
 
-  glim->wait();
+  bool auto_quit = false;
+  glim->declare_parameter<bool>("auto_quit", auto_quit);
+  glim->get_parameter<bool>("auto_quit", auto_quit);
+
+  glim->wait(auto_quit);
   glim->save("/tmp/dump");
 
   return 0;

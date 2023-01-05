@@ -26,6 +26,7 @@ public:
   GlimROS(const rclcpp::NodeOptions& options);
   ~GlimROS();
 
+  bool needs_wait();
   void timer_callback();
 
   void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
