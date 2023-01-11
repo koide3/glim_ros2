@@ -243,6 +243,16 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
   odometry_estimation->insert_frame(preprocessed);
 }
 
+bool GlimROS::needs_wait() {
+  for (const auto& ext_module : extension_modules) {
+    if (ext_module->needs_wait()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void GlimROS::timer_callback() {
   for (const auto& ext_module : extension_modules) {
     if (!ext_module->ok()) {
