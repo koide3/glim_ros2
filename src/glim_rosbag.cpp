@@ -28,7 +28,7 @@ public:
       const auto real = now - last_real_time;
       const auto sim = stamp - last_sim_time;
       const double playback_speed = sim / (std::chrono::duration_cast<std::chrono::nanoseconds>(real).count() / 1e9);
-      glim::notify(glim::NotificationLevel::INFO, (boost::format("playback speed:%.3fx") % playback_speed).str());
+      spdlog::info("playback speed: {:.3f}x", playback_speed);
     }
 
     last_sim_time = stamp;
