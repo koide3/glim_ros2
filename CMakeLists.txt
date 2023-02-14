@@ -62,20 +62,18 @@ target_link_libraries(glim_rosbag
 )
 
 ### offline_viewer ###
-if(BUILD_WITH_VIEWER)
-  ament_auto_add_executable(offline_viewer
-    src/offline_viewer.cpp
-  )
-  target_include_directories(offline_viewer PUBLIC
-    include
-    ${EIGEN3_INCLUDE_DIR}
-    ${GTSAM_INCLUDE_DIRS}
-    ${Iridescence_INCLUDE_DIRS}
-  )
-  target_link_libraries(offline_viewer
-    ${GTSAM_LIBRARIES}
-    ${Iridescence_LIBRARIES}
-  )
-endif()
+ament_auto_add_executable(offline_viewer
+  src/offline_viewer.cpp
+)
+target_include_directories(offline_viewer PUBLIC
+  include
+  ${EIGEN3_INCLUDE_DIR}
+  ${GTSAM_INCLUDE_DIRS}
+  ${Iridescence_INCLUDE_DIRS}
+)
+target_link_libraries(offline_viewer
+  ${GTSAM_LIBRARIES}
+  ${Iridescence_LIBRARIES}
+)
 
 ament_auto_package()

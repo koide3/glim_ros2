@@ -54,9 +54,8 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     spdlog::info("enable debug printing");
     logger->set_level(spdlog::level::trace);
 
-    if (!logger->sinks().empty()) {
-      auto console_sink = logger->sinks()[0];
-      console_sink->set_level(spdlog::level::debug);
+    for (auto& sink : logger->sinks()) {
+      sink->set_level(spdlog::level::debug);
     }
 
     auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/tmp/glim_log.log", true);
