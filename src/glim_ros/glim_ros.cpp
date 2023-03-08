@@ -167,7 +167,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
 
   auto imu_qos = rclcpp::SensorDataQoS();
-  imu_qos.get_rmw_qos_profile().depth = 100;
+  imu_qos.get_rmw_qos_profile().depth = 1000;
 
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
@@ -195,7 +195,10 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
   const Eigen::Vector3d angular_vel(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
 
-  time_keeper->validate_imu_stamp(imu_stamp);
+  if (!time_keeper->validate_imu_stamp(imu_stamp)) {
+    spdlog::warn("skip an invalid IMU data (stamp={})", imu_stamp);
+    return;
+  }
 
   odometry_estimation->insert_imu(imu_stamp, linear_acc, angular_vel);
   if (sub_mapping) {
@@ -237,9 +240,9 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
   //       If you need to reduce the memory footprint, you can safely comment out the following line.
   preprocessed->raw_points = raw_points;
 
-  while (odometry_estimation->input_queue_size() > 10) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
+  // while (odometry_estimation->input_queue_size() > 10) {
+  //   std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // }
   odometry_estimation->insert_frame(preprocessed);
 }
 
