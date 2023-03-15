@@ -18,6 +18,7 @@ find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(Iridescence REQUIRED)
+find_package(spdlog REQUIRED)
 
 if(BUILD_WITH_CUDA)
   add_definitions(-DBUILD_GTSAM_EXT_GPU)
@@ -38,6 +39,7 @@ target_link_libraries(glim_ros
   ${OpenCV_LIBRARIES}
   ${GTSAM_LIBRARIES}
   ${Iridescence_LIBRARIES}
+  spdlog::spdlog
 )
 rclcpp_components_register_nodes(glim_ros "glim::GlimROS")
 

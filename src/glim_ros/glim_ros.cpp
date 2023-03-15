@@ -41,10 +41,9 @@ namespace glim {
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
   // Setup logger
-  auto logger = spdlog::default_logger();
+  auto logger = get_default_logger();
   auto ringbuffer_sink = get_ringbuffer_sink();
   logger->sinks().push_back(ringbuffer_sink);
-  glim::set_default_logger(logger);
 
   bool debug = false;
   this->declare_parameter<bool>("debug", false);
@@ -52,15 +51,9 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   if (debug) {
     spdlog::info("enable debug printing");
-    logger->set_level(spdlog::level::trace);
-
-    for (auto& sink : logger->sinks()) {
-      sink->set_level(spdlog::level::debug);
-    }
-
     auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/tmp/glim_log.log", true);
-    file_sink->set_level(spdlog::level::trace);
     logger->sinks().push_back(file_sink);
+    logger->set_level(spdlog::level::trace);
   }
 
   std::string config_path;
@@ -177,6 +170,8 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     spdlog::debug("subscribe to {}", sub->topic);
     sub->create_subscriber(*this);
   }
+
+  spdlog::debug("initialized");
 }
 
 GlimROS::~GlimROS() {
