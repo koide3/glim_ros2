@@ -29,13 +29,8 @@
 #include <glim/util/extension_module_ros2.hpp>
 #include <glim/preprocess/cloud_preprocessor.hpp>
 #include <glim/frontend/async_odometry_estimation.hpp>
-#include <glim/frontend/odometry_estimation_ct.hpp>
-#include <glim/frontend/odometry_estimation_cpu.hpp>
-#include <glim/frontend/odometry_estimation_gpu.hpp>
 #include <glim/backend/async_sub_mapping.hpp>
 #include <glim/backend/async_global_mapping.hpp>
-#include <glim/backend/sub_mapping.hpp>
-#include <glim/backend/global_mapping.hpp>
 
 namespace glim {
 
@@ -77,39 +72,34 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   preprocessor.reset(new glim::CloudPreprocessor);
 
   // Odometry estimation
-  glim::Config config_front(glim::GlobalConfig::get_config_path("config_frontend"));
-  const std::string frontend_mode = config_front.param<std::string>("odometry_estimation", "frontend_mode", "CPU");
+  glim::Config config_odometry(glim::GlobalConfig::get_config_path("config_frontend"));
+  const std::string odometry_estimation_so_name = config_odometry.param<std::string>("odometry_estimation", "so_name", "libodometry_estimation_cpu.so");
+  spdlog::info("load {}", odometry_estimation_so_name);
 
-  bool enable_imu = true;
-  std::shared_ptr<glim::OdometryEstimationBase> odom;
-  if (frontend_mode == "CPU") {
-    spdlog::info("use CPU-based Range-IMU odometry estimation");
-    odom.reset(new glim::OdometryEstimationCPU);
-  } else if (frontend_mode == "GPU") {
-    spdlog::info("use GPU-based Range-IMU odometry estimation");
-#ifdef BUILD_GTSAM_EXT_GPU
-    odom.reset(new glim::OdometryEstimationGPU);
-#else
-    RCLCPP_WARN_STREAM(this->get_logger(), "GPU frontend is selected although glim was built without GPU support!!");
-#endif
-  } else if (frontend_mode == "CT") {
-    spdlog::info("use CPU-based CT-ICP odometry estimation");
-    enable_imu = false;
-    odom.reset(new glim::OdometryEstimationCT);
-  } else {
-    spdlog::critical("unknown odometry estimation mode: {}", frontend_mode);
+  std::shared_ptr<glim::OdometryEstimationBase> odom = OdometryEstimationBase::load_module(odometry_estimation_so_name);
+  if (!odom) {
+    spdlog::critical("failed to load odometry estimation module");
     abort();
   }
+  odometry_estimation.reset(new glim::AsyncOdometryEstimation(odom, odom->requires_imu()));
 
-  odometry_estimation.reset(new glim::AsyncOdometryEstimation(odom, enable_imu));
+  // Sub mapping
+  const std::string sub_mapping_so_name = glim::Config(glim::GlobalConfig::get_config_path("config_sub_mapping")).param<std::string>("sub_mapping", "so_name", "libsub_mapping.so");
+  if (!sub_mapping_so_name.empty()) {
+    spdlog::info("load {}", sub_mapping_so_name);
+    auto sub = SubMappingBase::load_module(sub_mapping_so_name);
+    if (sub) {
+      sub_mapping.reset(new AsyncSubMapping(sub));
+    }
+  }
 
-  // Backend
-  if (config_ros.param<bool>("glim_ros", "enable_local_mapping", true)) {
-    spdlog::info("enable local mapping");
-    sub_mapping.reset(new glim::AsyncSubMapping(std::shared_ptr<glim::SubMapping>(new glim::SubMapping)));
-    if (config_ros.param<bool>("glim_ros", "enable_global_mapping", true)) {
-      spdlog::info("enable global mapping");
-      global_mapping.reset(new glim::AsyncGlobalMapping(std::shared_ptr<glim::GlobalMapping>(new glim::GlobalMapping)));
+  // Global mapping
+  const std::string global_mapping_so_name = glim::Config(glim::GlobalConfig::get_config_path("config_global_mapping")).param<std::string>("global_mapping", "so_name", "libglobal_mapping.so");
+  if (!global_mapping_so_name.empty()) {
+    spdlog::info("load {}", global_mapping_so_name);
+    auto global = GlobalMappingBase::load_module(global_mapping_so_name);
+    if (global) {
+      global_mapping.reset(new AsyncGlobalMapping(global));
     }
   }
 
@@ -135,7 +125,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
     for (const auto& extension : *extensions) {
       spdlog::info("load {}", extension);
-      auto ext_module = ExtensionModule::load(extension);
+      auto ext_module = ExtensionModule::load_module(extension);
       if (ext_module == nullptr) {
         spdlog::error("failed to load {}", extension);
         continue;
