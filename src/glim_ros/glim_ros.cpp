@@ -21,6 +21,9 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
+#include <gtsam_ext/optimizers/linearization_hook.hpp>
+#include <gtsam_ext/cuda/nonlinear_factor_set_gpu_create.hpp>
+
 #include <glim/util/config.hpp>
 #include <glim/util/logging.hpp>
 #include <glim/util/time_keeper.hpp>
@@ -55,6 +58,11 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     logger->sinks().push_back(file_sink);
     logger->set_level(spdlog::level::trace);
   }
+
+  spdlog::info("register linearization hooks");
+#ifdef BUILD_GTSAM_EXT_GPU
+  gtsam_ext::LinearizationHook::register_hook([]() { return gtsam_ext::create_nonlinear_factor_set_gpu(); });
+#endif
 
   std::string config_path;
   this->declare_parameter<std::string>("config_path", "config");
