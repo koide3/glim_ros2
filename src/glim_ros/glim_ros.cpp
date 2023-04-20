@@ -21,6 +21,9 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
+#include <gtsam_ext/optimizers/linearization_hook.hpp>
+#include <gtsam_ext/cuda/nonlinear_factor_set_gpu_create.hpp>
+
 #include <glim/util/config.hpp>
 #include <glim/util/logging.hpp>
 #include <glim/util/time_keeper.hpp>
@@ -63,9 +66,13 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   spdlog::info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
-
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
+
+  // Setup GPU-based linearization
+#ifdef BUILD_GTSAM_EXT_GPU
+  gtsam_ext::LinearizationHook::register_hook([]() { return gtsam_ext::create_nonlinear_factor_set_gpu(); });
+#endif
 
   // Preprocessing
   time_keeper.reset(new glim::TimeKeeper);
@@ -94,7 +101,8 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   }
 
   // Global mapping
-  const std::string global_mapping_so_name = glim::Config(glim::GlobalConfig::get_config_path("config_global_mapping")).param<std::string>("global_mapping", "so_name", "libglobal_mapping.so");
+  const std::string global_mapping_so_name =
+    glim::Config(glim::GlobalConfig::get_config_path("config_global_mapping")).param<std::string>("global_mapping", "so_name", "libglobal_mapping.so");
   if (!global_mapping_so_name.empty()) {
     spdlog::info("load {}", global_mapping_so_name);
     auto global = GlobalMappingBase::load_module(global_mapping_so_name);
@@ -147,11 +155,9 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   const std::string points_topic = config_ros.param<std::string>("glim_ros", "points_topic", "");
   const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "");
 
-  timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
-
+  // Subscribers
   auto imu_qos = rclcpp::SensorDataQoS();
   imu_qos.get_rmw_qos_profile().depth = 1000;
-
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
   image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", rmw_qos_profile_sensor_data);
@@ -160,6 +166,9 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     spdlog::debug("subscribe to {}", sub->topic);
     sub->create_subscriber(*this);
   }
+
+  // Start timer
+  timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
 
   spdlog::debug("initialized");
 }
