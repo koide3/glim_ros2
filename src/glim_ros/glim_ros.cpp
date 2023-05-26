@@ -39,7 +39,8 @@ namespace glim {
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
   // Setup logger
-  auto logger = get_default_logger();
+  auto logger = spdlog::stdout_color_mt("glim");
+  spdlog::set_default_logger(logger);
   auto ringbuffer_sink = get_ringbuffer_sink();
   logger->sinks().push_back(ringbuffer_sink);
 
