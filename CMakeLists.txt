@@ -63,6 +63,14 @@ target_link_libraries(glim_rosbag
   glim_ros
 )
 
+### validator_node ###
+ament_auto_add_executable(validator_node
+  src/validator_node.cpp
+)
+target_link_libraries(validator_node
+  glim_ros
+)
+
 ### offline_viewer ###
 ament_auto_add_executable(offline_viewer
   src/offline_viewer.cpp
