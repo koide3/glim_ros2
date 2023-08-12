@@ -4,7 +4,7 @@
 #include <rclcpp/clock.hpp>
 
 #define GLIM_ROS2
-#include <gtsam_ext/types/frame_cpu.hpp>
+#include <gtsam_ext/types/point_cloud_cpu.hpp>
 #include <glim/frontend/callbacks.hpp>
 #include <glim/backend/callbacks.hpp>
 #include <glim/util/trajectory_manager.hpp>
@@ -195,7 +195,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
       transformed[i] = new_frame->T_world_sensor() * new_frame->frame->points[i];
     }
 
-    gtsam_ext::Frame frame;
+    gtsam_ext::PointCloud frame;
     frame.num_points = new_frame->frame->size();
     frame.points = transformed.data();
     frame.times = new_frame->frame->times;
@@ -242,7 +242,7 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
     }
 
     // Concatenate all the submap points
-    gtsam_ext::FrameCPU::Ptr merged(new gtsam_ext::FrameCPU);
+    gtsam_ext::PointCloudCPU::Ptr merged(new gtsam_ext::PointCloudCPU);
     merged->num_points = total_num_points;
     merged->points_storage.resize(total_num_points);
     merged->points = merged->points_storage.data();
