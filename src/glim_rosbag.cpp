@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     spdlog::info("- {}", bag_filename);
   }
 
-  const double playback_speed = config_ros.param<double>("glim_ros", "playback_speed", 10.0);
+  const double playback_speed = config_ros.param<double>("glim_ros", "playback_speed", 100.0);
   const auto real_t0 = std::chrono::high_resolution_clock::now();
   rcutils_time_point_value_t bag_t0 = 0;
   SpeedCounter speed_counter;
