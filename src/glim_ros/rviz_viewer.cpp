@@ -44,6 +44,15 @@ RvizViewer::~RvizViewer() {
 }
 
 std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclcpp::Node& node) {
+  node.declare_parameter<std::string>("imu_frame_id", imu_frame_id);
+  node.declare_parameter<std::string>("lidar_frame_id", lidar_frame_id);
+  node.declare_parameter<std::string>("odom_frame_id", odom_frame_id);
+  node.declare_parameter<std::string>("world_frame_id", world_frame_id);
+  node.get_parameter<std::string>("imu_frame_id", imu_frame_id);
+  node.get_parameter<std::string>("lidar_frame_id", lidar_frame_id);
+  node.get_parameter<std::string>("odom_frame_id", odom_frame_id);
+  node.get_parameter<std::string>("world_frame_id", world_frame_id);
+
   tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(node);
 
   points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/points", 10);
