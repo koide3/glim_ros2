@@ -240,7 +240,7 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
   //       If you need to reduce the memory footprint, you can safely comment out the following line.
   preprocessed->raw_points = raw_points;
 
-  while (odometry_estimation->input_queue_size() > 10) {
+  if (odometry_estimation->input_queue_size() > 10) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   odometry_estimation->insert_frame(preprocessed);
