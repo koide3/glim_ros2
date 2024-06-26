@@ -14,6 +14,7 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
 find_package(glim REQUIRED)
+find_package(gtsam_points REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
@@ -21,7 +22,7 @@ find_package(Iridescence REQUIRED)
 find_package(spdlog REQUIRED)
 
 if(BUILD_WITH_CUDA)
-  add_definitions(-DBUILD_GTSAM_EXT_GPU)
+  add_definitions(-DBUILD_GTSAM_POINTS_GPU)
 endif()
 
 ### glim_ros ###
@@ -33,13 +34,12 @@ target_include_directories(glim_ros PUBLIC
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${GTSAM_INCLUDE_DIRS}
-  ${Iridescence_INCLUDE_DIRS}
 )
 target_link_libraries(glim_ros
   ${OpenCV_LIBRARIES}
   ${GTSAM_LIBRARIES}
-  ${Iridescence_LIBRARIES}
   spdlog::spdlog
+  gtsam_points::gtsam_points
 )
 rclcpp_components_register_nodes(glim_ros "glim::GlimROS")
 
@@ -79,11 +79,11 @@ target_include_directories(offline_viewer PUBLIC
   include
   ${EIGEN3_INCLUDE_DIR}
   ${GTSAM_INCLUDE_DIRS}
-  ${Iridescence_INCLUDE_DIRS}
 )
 target_link_libraries(offline_viewer
   ${GTSAM_LIBRARIES}
-  ${Iridescence_LIBRARIES}
+  Iridescence::Iridescence
+  gtsam_points::gtsam_points
 )
 
 ament_auto_package()

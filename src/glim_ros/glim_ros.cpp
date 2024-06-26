@@ -21,8 +21,8 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
-#include <gtsam_ext/optimizers/linearization_hook.hpp>
-#include <gtsam_ext/cuda/nonlinear_factor_set_gpu_create.hpp>
+#include <gtsam_points/optimizers/linearization_hook.hpp>
+#include <gtsam_points/cuda/nonlinear_factor_set_gpu_create.hpp>
 
 #include <glim/util/config.hpp>
 #include <glim/util/logging.hpp>
@@ -71,8 +71,8 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
 
   // Setup GPU-based linearization
-#ifdef BUILD_GTSAM_EXT_GPU
-  gtsam_ext::LinearizationHook::register_hook([]() { return gtsam_ext::create_nonlinear_factor_set_gpu(); });
+#ifdef BUILD_GTSAM_POINTS_GPU
+  gtsam_points::LinearizationHook::register_hook([]() { return gtsam_points::create_nonlinear_factor_set_gpu(); });
 #endif
 
   // Preprocessing
