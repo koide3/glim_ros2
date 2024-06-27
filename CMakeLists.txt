@@ -20,6 +20,7 @@ find_package(OpenCV REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(Iridescence REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(TBB REQUIRED)
 
 if(BUILD_WITH_CUDA)
   add_definitions(-DBUILD_GTSAM_POINTS_GPU)
@@ -31,13 +32,13 @@ ament_auto_add_library(glim_ros SHARED
 )
 target_include_directories(glim_ros PUBLIC
   include
-  ${OpenCV_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIR}
   ${GTSAM_INCLUDE_DIRS}
 )
 target_link_libraries(glim_ros
-  ${OpenCV_LIBRARIES}
   ${GTSAM_LIBRARIES}
+  opencv_core
+  Eigen3::Eigen
+  TBB::tbb
   spdlog::spdlog
   gtsam_points::gtsam_points
 )

@@ -31,9 +31,9 @@
 #include <glim/util/extension_module.hpp>
 #include <glim/util/extension_module_ros2.hpp>
 #include <glim/preprocess/cloud_preprocessor.hpp>
-#include <glim/frontend/async_odometry_estimation.hpp>
-#include <glim/backend/async_sub_mapping.hpp>
-#include <glim/backend/async_global_mapping.hpp>
+#include <glim/odometry/async_odometry_estimation.hpp>
+#include <glim/mapping/async_sub_mapping.hpp>
+#include <glim/mapping/async_global_mapping.hpp>
 
 namespace glim {
 
@@ -80,7 +80,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   preprocessor.reset(new glim::CloudPreprocessor);
 
   // Odometry estimation
-  glim::Config config_odometry(glim::GlobalConfig::get_config_path("config_frontend"));
+  glim::Config config_odometry(glim::GlobalConfig::get_config_path("config_odometry"));
   const std::string odometry_estimation_so_name = config_odometry.param<std::string>("odometry_estimation", "so_name", "libodometry_estimation_cpu.so");
   spdlog::info("load {}", odometry_estimation_so_name);
 
@@ -240,7 +240,7 @@ void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPt
   //       If you need to reduce the memory footprint, you can safely comment out the following line.
   preprocessed->raw_points = raw_points;
 
-  if (odometry_estimation->input_queue_size() > 10) {
+  if (odometry_estimation->workload() > 10) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   odometry_estimation->insert_frame(preprocessed);

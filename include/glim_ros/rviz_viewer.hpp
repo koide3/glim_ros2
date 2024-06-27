@@ -12,8 +12,8 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
-#include <glim/frontend/estimation_frame.hpp>
-#include <glim/backend/sub_map.hpp>
+#include <glim/odometry/estimation_frame.hpp>
+#include <glim/mapping/sub_map.hpp>
 #include <glim/util/extension_module.hpp>
 #include <glim/util/extension_module_ros2.hpp>
 
@@ -33,7 +33,7 @@ public:
 
 private:
   void set_callbacks();
-  void frontend_new_frame(const EstimationFrame::ConstPtr& new_frame);
+  void odometry_new_frame(const EstimationFrame::ConstPtr& new_frame);
   void globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& submaps);
   void invoke(const std::function<void()>& task);
 

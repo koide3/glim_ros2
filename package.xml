@@ -3,7 +3,7 @@
 <package format="3">
   <name>glim_ros</name>
   <version>0.0.0</version>
-  <description>LiDAR-IMU frontend based on tight coupling of geometrical and inertial constraints</description>
+  <description>LiDAR-IMU odometry based on tight coupling of geometric and inertial constraints</description>
   <maintainer email="k.koide@aist.go.jp">k.koide</maintainer>
   <license>GPLv3</license>
 

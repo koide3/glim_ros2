@@ -5,8 +5,8 @@
 
 #define GLIM_ROS2
 #include <gtsam_points/types/point_cloud_cpu.hpp>
-#include <glim/frontend/callbacks.hpp>
-#include <glim/backend/callbacks.hpp>
+#include <glim/odometry/callbacks.hpp>
+#include <glim/mapping/callbacks.hpp>
 #include <glim/util/trajectory_manager.hpp>
 #include <glim/util/ros_cloud_converter.hpp>
 
@@ -69,11 +69,11 @@ std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclc
 
 void RvizViewer::set_callbacks() {
   using std::placeholders::_1;
-  OdometryEstimationCallbacks::on_new_frame.add(std::bind(&RvizViewer::frontend_new_frame, this, _1));
+  OdometryEstimationCallbacks::on_new_frame.add(std::bind(&RvizViewer::odometry_new_frame, this, _1));
   GlobalMappingCallbacks::on_update_submaps.add(std::bind(&RvizViewer::globalmap_on_update_submaps, this, _1));
 }
 
-void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) {
+void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) {
   const Eigen::Isometry3d T_odom_imu = new_frame->T_world_imu;
   const Eigen::Quaterniond quat_odom_imu(T_odom_imu.linear());
 
@@ -87,7 +87,7 @@ void RvizViewer::frontend_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   Eigen::Quaterniond quat_world_imu;
 
   {
-    // Transform the frontend frame to the global optimization-based world frame
+    // Transform the odometry frame to the global optimization-based world frame
     std::lock_guard<std::mutex> lock(trajectory_mutex);
     trajectory->add_odom(new_frame->stamp, new_frame->T_world_imu);
     T_world_odom = trajectory->get_T_world_odom();
