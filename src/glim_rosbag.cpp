@@ -11,7 +11,6 @@
 
 #include <glim/util/config.hpp>
 #include <glim/util/extension_module_ros2.hpp>
-#include <glim/common/callbacks.hpp>
 #include <glim_ros/glim_ros.hpp>
 
 class SpeedCounter {
