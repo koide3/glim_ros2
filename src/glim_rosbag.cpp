@@ -185,6 +185,10 @@ int main(int argc, char** argv) {
   glim->declare_parameter<bool>("auto_quit", auto_quit);
   glim->get_parameter<bool>("auto_quit", auto_quit);
 
+  if (!auto_quit) {
+    rclcpp::spin(glim);
+  }
+
   glim->wait(auto_quit);
   glim->save("/tmp/dump");
 

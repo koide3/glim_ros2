@@ -14,6 +14,12 @@ int main(int argc, char** argv) {
   std::cout << "config_path: " << config_path << std::endl;
   glim::GlobalConfig::instance(config_path);
 
-  glim::OfflineViewer viewer;
+  std::string init_map_path;
+  if (argc >= 2) {
+    init_map_path = argv[1];
+    std::cout << "map_path=" << init_map_path << std::endl;
+  }
+
+  glim::OfflineViewer viewer(init_map_path);
   viewer.wait();
 }
