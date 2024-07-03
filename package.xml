@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>LiDAR-IMU odometry based on tight coupling of geometric and inertial constraints</description>
   <maintainer email="k.koide@aist.go.jp">k.koide</maintainer>
-  <license>GPLv3</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
