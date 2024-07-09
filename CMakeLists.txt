@@ -19,6 +19,13 @@ if(BUILD_WITH_CUDA)
   add_definitions(-DBUILD_GTSAM_POINTS_GPU)
 endif()
 
+set(OLD_DISTRO "humble;galactic;foxy")
+if($ENV{ROS_DISTRO} IN_LIST OLD_DISTRO)
+  add_definitions(-DCV_BRIDGE_INCLUDE_H)
+else()
+  add_definitions(-DCV_BRIDGE_INCLUDE_HPP)
+endif()
+
 ### glim_ros ###
 ament_auto_add_library(glim_ros SHARED
   src/glim_ros/glim_ros.cpp

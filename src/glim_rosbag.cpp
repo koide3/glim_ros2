@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <boost/format.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <rosbag2_cpp/reader.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
 #include <rosbag2_storage/storage_filter.hpp>
@@ -12,6 +13,7 @@
 #include <glim/util/config.hpp>
 #include <glim/util/extension_module_ros2.hpp>
 #include <glim_ros/glim_ros.hpp>
+#include <glim_ros/ros_compatibility.hpp>
 
 class SpeedCounter {
 public:
@@ -125,11 +127,13 @@ int main(int argc, char** argv) {
       const std::string topic_type = topic_type_map[msg->topic_name];
       const rclcpp::SerializedMessage serialized_msg(*msg->serialized_data);
 
+      const auto msg_time = get_msg_recv_timestamp(*msg);
+
       if (bag_t0 == 0) {
-        bag_t0 = msg->time_stamp;
+        bag_t0 = msg_time;
       }
 
-      const auto bag_elapsed = std::chrono::nanoseconds(msg->time_stamp - bag_t0);
+      const auto bag_elapsed = std::chrono::nanoseconds(msg_time - bag_t0);
       while (playback_speed > 0.0 && (std::chrono::high_resolution_clock::now() - real_t0) * playback_speed < bag_elapsed) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
@@ -159,7 +163,7 @@ int main(int argc, char** argv) {
       }
 
       glim->timer_callback();
-      speed_counter.update(msg->time_stamp / 1e9);
+      speed_counter.update(msg_time / 1e9);
 
       const auto t0 = std::chrono::high_resolution_clock::now();
       while (glim->needs_wait()) {
