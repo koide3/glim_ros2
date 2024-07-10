@@ -19,9 +19,9 @@ jobs:
     strategy:
       matrix:
         DISTRO: [
-          { "ubuntu": "noble", "ros": "jazzy", "suffix": "gcc" },
-          { "ubuntu": "jammy", "ros": "humble", "suffix": "gcc" },
-          { "ubuntu": "jammy_cuda12.2", "ros": "humble", "suffix": "gcc.cuda" },
+          { "ubuntu": "noble", "ros": "jazzy", "suffix": "gcc", "label": "jazzy" },
+          { "ubuntu": "jammy", "ros": "humble", "suffix": "gcc", "label": "humble" },
+          { "ubuntu": "jammy_cuda12.2", "ros": "humble", "suffix": "gcc.cuda", "label": "humble_cuda12.2" },
         ]
 
     steps:
@@ -48,7 +48,7 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@v2
         with:
-          tags: koide3/glim_ros2:${{ matrix.DISTRO.ubuntu }}
+          tags: koide3/glim_ros2:${{ matrix.DISTRO.label }}
           file: ${{github.workspace}}/glim_ros2/docker/Dockerfile.${{ matrix.DISTRO.suffix }}
           build-args: |
             BASE_IMAGE=koide3/gtsam_points:${{ matrix.DISTRO.ubuntu }}
