@@ -1,4 +1,7 @@
-FROM koide3/gtsam_docker:focal_cuda11.2
+ARG BASE_IMAGE=koide3/gtsam_points:jammy
+FROM $BASE_IMAGE
+
+ARG ROS_DISTRO=humble
 
 RUN apt-get update \
   && apt-get upgrade -y \
@@ -11,15 +14,15 @@ RUN apt-get update \
   && apt-get update \
   && apt-get install --no-install-recommends -y \
     python3-colcon-common-extensions \
-    ros-galactic-ros-base ros-galactic-cv-bridge \
-    ros-galactic-image-transport-plugins ros-galactic-tf2-ros \
+    ros-${ROS_DISTRO}-ros-base ros-${ROS_DISTRO}-cv-bridge \
+    ros-${ROS_DISTRO}-image-transport-plugins ros-${ROS_DISTRO}-tf2-ros \
   # clean
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
 RUN echo "#!/bin/bash" >> /ros_entrypoint.sh \
   && echo "set -e" >> /ros_entrypoint.sh \
-  && echo "source /opt/ros/galactic/setup.bash" >> /ros_entrypoint.sh \
+  && echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /ros_entrypoint.sh \
   && echo "source /root/ros2_ws/install/setup.bash" >> /ros_entrypoint.sh \
   && echo 'exec "$@"' >> /ros_entrypoint.sh \
   && chmod a+x /ros_entrypoint.sh
@@ -28,7 +31,7 @@ COPY glim /root/ros2_ws/src/glim
 COPY glim_ros2 /root/ros2_ws/src/glim_ros2
 
 WORKDIR /root/ros2_ws
-RUN /bin/bash -c '. /opt/ros/galactic/setup.bash; colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_CUDA=ON -DBUILD_WITH_VIEWER=ON'
+RUN /bin/bash -c '. /opt/ros/${ROS_DISTRO}/setup.bash; colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_CUDA=OFF -DBUILD_WITH_VIEWER=ON'
 
 WORKDIR /root/ros2_ws/src/glim
 

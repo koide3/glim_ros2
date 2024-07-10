@@ -4,6 +4,11 @@ on:
   pull_request:
     branches: [ master ]
     paths-ignore: '**.md'
+  push:
+    branches: [ master ]
+    paths-ignore: '**.md'
+  repository_dispatch:
+    types: [trigger-event]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -11,18 +16,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        DISTRO: [
+          { "ubuntu": "noble", "suffix": "gcc" },
+          { "ubuntu": "jammy", "suffix": "gcc" },
+          { "ubuntu": "jammy_cuda12.2", "suffix": "gcc.cuda" },
+        ]
 
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.PAT }}
           path: glim_ros2
           submodules: recursive
 
       - uses: actions/checkout@v2
         with:
           repository: koide3/glim
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.PAT }}
           path: glim
           submodules: recursive
 
@@ -36,13 +48,10 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@v2
         with:
-          file: ${{github.workspace}}/glim_ros2/docker/galactic/Dockerfile
+          tags: koide3/glim_ros2:${{ matrix.DISTRO.ubuntu }}
+          file: ${{github.workspace}}/glim_ros2/docker/Dockerfile.${{ matrix.DISTRO.suffix }}
+          build-args: |
+            BASE_IMAGE=koide3/gtsam_points:${{ matrix.DISTRO.ubuntu }}
           context: .
-          push: false
+          push: ${{ github.event_name == 'push' && contains(matrix.DISTRO.suffix, 'gcc') }}
 
-      - name: Docker build
-        uses: docker/build-push-action@v2
-        with:
-          file: ${{github.workspace}}/glim_ros2/docker/galactic_cuda11.2/Dockerfile
-          context: .
-          push: false
