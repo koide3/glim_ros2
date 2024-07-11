@@ -1,6 +1,7 @@
 #include <glim_ros/rviz_viewer.hpp>
 
 #include <mutex>
+#include <spdlog/spdlog.h>
 #include <rclcpp/clock.hpp>
 
 #define GLIM_ROS2
@@ -235,6 +236,8 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       return;
     }
     last_globalmap_pub_time = now;
+
+    spdlog::warn("Publishing global map is computationally demanding and not recommended");
 
     int total_num_points = 0;
     for (const auto& submap : this->submaps) {
