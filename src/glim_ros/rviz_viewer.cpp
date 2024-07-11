@@ -8,12 +8,13 @@
 #include <gtsam_points/types/point_cloud_cpu.hpp>
 #include <glim/odometry/callbacks.hpp>
 #include <glim/mapping/callbacks.hpp>
+#include <glim/util/logging.hpp>
 #include <glim/util/trajectory_manager.hpp>
 #include <glim/util/ros_cloud_converter.hpp>
 
 namespace glim {
 
-RvizViewer::RvizViewer() {
+RvizViewer::RvizViewer() : logger(create_module_logger("rviz")) {
   imu_frame_id = "imu";
   lidar_frame_id = "lidar";
   odom_frame_id = "odom";
@@ -153,6 +154,8 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     odom.pose.pose.orientation.z = quat_odom_imu.z();
     odom.pose.pose.orientation.w = quat_odom_imu.w();
     odom_pub->publish(odom);
+
+    logger->debug("published odom (stamp={})", new_frame->stamp);
   }
 
   if (pose_pub->get_subscription_count()) {
@@ -168,6 +171,8 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     pose.pose.orientation.z = quat_world_imu.z();
     pose.pose.orientation.w = quat_world_imu.w();
     pose_pub->publish(pose);
+
+    logger->debug("published pose (stamp={})", new_frame->stamp);
   }
 
   if (points_pub->get_subscription_count()) {
@@ -187,6 +192,8 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
 
     auto points = frame_to_pointcloud2(frame_id, new_frame->stamp, *new_frame->frame);
     points_pub->publish(*points);
+
+    logger->debug("published points (stamp={} num_points={})", new_frame->stamp, new_frame->frame->size());
   }
 
   if (aligned_points_pub->get_subscription_count()) {
@@ -204,6 +211,8 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
 
     auto points = frame_to_pointcloud2(world_frame_id, new_frame->stamp, frame);
     aligned_points_pub->publish(*points);
+
+    logger->debug("published aligned_points (stamp={} num_points={})", new_frame->stamp, frame.size());
   }
 }
 
@@ -237,7 +246,7 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
     }
     last_globalmap_pub_time = now;
 
-    spdlog::warn("Publishing global map is computationally demanding and not recommended");
+    logger->warn("Publishing global map is computationally demanding and not recommended");
 
     int total_num_points = 0;
     for (const auto& submap : this->submaps) {
