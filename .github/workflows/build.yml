@@ -54,7 +54,7 @@ jobs:
             BASE_IMAGE=koide3/gtsam_points:${{ matrix.DISTRO.ubuntu }}
             ROS_DISTRO=${{ matrix.DISTRO.ros }}
           context: .
-          push: ${{ github.event_name == 'push' && contains(matrix.DISTRO.suffix, 'gcc') }}
+          push: ${{ (github.event_name == 'push' || github.event_name == 'repository_dispatch') && contains(matrix.DISTRO.suffix, 'gcc') }}
 
   dispatch:
     needs: build
