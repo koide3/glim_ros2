@@ -121,7 +121,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   const auto extensions = config_ros.param<std::vector<std::string>>("glim_ros", "extension_modules");
   if (extensions && !extensions->empty()) {
     for (const auto& extension : *extensions) {
-      if (extension.find("viewer") == std::string::npos) {
+      if (extension.find("viewer") == std::string::npos && extension.find("monitor") == std::string::npos) {
         spdlog::warn("Extension modules are enabled!!");
         spdlog::warn("You must carefully check and follow the licenses of ext modules");
 
