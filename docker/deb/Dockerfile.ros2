@@ -40,6 +40,7 @@ WORKDIR /root/glim
 RUN bloom-generate rosdebian
 RUN sed -i 's/dh $@/dh $@ --parallel/g' ./debian/rules
 RUN sed -i 's/dh_shlibdeps/dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info/g' ./debian/rules
+RUN sed -i "s/Depends: /Depends: libiridescence-dev, libgtsam-points${PACKAGE_SUFFIX}-dev, /g" ./debian/control
 RUN sed -i "s/ros-${ROS_DISTRO}-glim/ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}/g" ./debian/control
 RUN sed -i "s/ros-${ROS_DISTRO}-glim/ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}/g" ./debian/changelog
 RUN sed -i "s/ros-${ROS_DISTRO}-glim/ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}/g" ./debian/rules
