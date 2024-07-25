@@ -1,6 +1,8 @@
 ARG BASE_IMAGE=nvidia/cuda:12.5.1-devel-ubuntu24.04
 FROM $BASE_IMAGE
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update
 RUN apt-get upgrade -y
 RUN apt-get install --no-install-recommends -y \
