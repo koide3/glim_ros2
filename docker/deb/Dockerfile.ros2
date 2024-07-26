@@ -1,0 +1,66 @@
+ARG BASE_IMAGE=nvidia/cuda:12.5.1-devel-ubuntu24.04
+FROM $BASE_IMAGE
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update
+RUN apt-get upgrade -y
+RUN apt-get install --no-install-recommends -y \
+    gpg curl libfmt-dev libspdlog-dev libopencv-dev \
+    libboost-all-dev libglfw3-dev libmetis-dev
+
+ARG ROS_DISTRO=jazzy
+
+# install ROS
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+RUN apt-get update
+RUN apt-get install --no-install-recommends -y \
+    python3-colcon-common-extensions \
+    ros-${ROS_DISTRO}-ros-base ros-${ROS_DISTRO}-cv-bridge \
+    ros-${ROS_DISTRO}-image-transport-plugins ros-${ROS_DISTRO}-tf2-ros \
+    python3-bloom python3-rosdep fakeroot debhelper dh-python
+
+COPY local_ppa /ppa
+
+RUN /ppa/setup_ppa.sh
+RUN sed -i 's#https://koide3.github.io/ppa#file:///ppa#g' /etc/apt/sources.list.d/koide3_ppa.list
+RUN apt-get update
+
+ARG PACKAGE_SUFFIX=-cuda12.5
+
+RUN apt-get install --no-install-recommends -y \
+    libiridescence-dev libgtsam-points${PACKAGE_SUFFIX}-dev
+
+RUN rosdep init && rosdep update
+
+COPY glim /root/glim
+
+WORKDIR /root/glim
+RUN bloom-generate rosdebian
+RUN sed -i 's/dh $@/dh $@ --parallel/g' ./debian/rules
+RUN sed -i 's/dh_shlibdeps/dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info/g' ./debian/rules
+RUN sed -i "s/Depends: /Depends: libiridescence-dev, libgtsam-points${PACKAGE_SUFFIX}-dev, /g" ./debian/control
+RUN sed -i "s/ros-${ROS_DISTRO}-glim/ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}/g" ./debian/control
+RUN sed -i "s/ros-${ROS_DISTRO}-glim/ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}/g" ./debian/changelog
+RUN sed -i "s/ros-${ROS_DISTRO}-glim/ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}/g" ./debian/rules
+RUN DEB_BUILD_OPTIONS="parallel=$(nproc)" fakeroot debian/rules binary
+
+RUN apt-get install -y /root/ros-${ROS_DISTRO}-glim*.deb
+
+RUN echo "glim:" >> /root/rosdep.yaml
+RUN echo "  ubuntu: [ros-${ROS_DISTRO}-glim${PACKAGE_SUFFIX}]" >> /root/rosdep.yaml
+RUN echo "yaml file:///root/rosdep.yaml" > /etc/ros/rosdep/sources.list.d/99-glim.list
+RUN apt-get update && rosdep update
+
+COPY glim_ros2 /root/glim_ros2
+WORKDIR /root/glim_ros2
+RUN /bin/bash -c '. /opt/ros/${ROS_DISTRO}/setup.bash; bloom-generate rosdebian'
+RUN sed -i 's/dh $@/dh $@ --parallel/g' ./debian/rules
+RUN sed -i 's/dh_shlibdeps/dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info/g' ./debian/rules
+RUN sed -i "s/ros-${ROS_DISTRO}-glim-ros/ros-${ROS_DISTRO}-glim-ros${PACKAGE_SUFFIX}/g" ./debian/control
+RUN sed -i "s/ros-${ROS_DISTRO}-glim-ros/ros-${ROS_DISTRO}-glim-ros${PACKAGE_SUFFIX}/g" ./debian/changelog
+RUN sed -i "s/ros-${ROS_DISTRO}-glim-ros/ros-${ROS_DISTRO}-glim-ros${PACKAGE_SUFFIX}/g" ./debian/rules
+RUN DEB_BUILD_OPTIONS="parallel=$(nproc)" fakeroot debian/rules binary
+
+CMD ["bash"]
