@@ -30,7 +30,7 @@ public:
 
   void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
-  void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+  size_t points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
   void wait(bool auto_quit = false);
   void save(const std::string& path);
@@ -45,6 +45,7 @@ private:
   std::unique_ptr<glim::AsyncSubMapping> sub_mapping;
   std::unique_ptr<glim::AsyncGlobalMapping> global_mapping;
 
+  bool keep_raw_points;
   double imu_time_offset;
   double acc_scale;
 

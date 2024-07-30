@@ -67,6 +67,8 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   spdlog::info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
+
+  keep_raw_points = config_ros.param<bool>("glim_ros", "keep_raw_points", false);
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
 
@@ -224,26 +226,30 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
   }
 }
 
-void GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
   spdlog::trace("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
 
   auto raw_points = glim::extract_raw_points(msg);
   if (raw_points == nullptr) {
     spdlog::warn("failed to extract points from message");
-    return;
+    return 0;
   }
 
   time_keeper->process(raw_points);
   auto preprocessed = preprocessor->preprocess(raw_points);
 
-  // note: Raw points are used only in extension modules for visualization purposes.
-  //       If you need to reduce the memory footprint, you can safely comment out the following line.
-  preprocessed->raw_points = raw_points;
-
-  if (odometry_estimation->workload() > 10) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  if (keep_raw_points) {
+    // note: Raw points are used only in extension modules for visualization purposes.
+    //       If you need to reduce the memory footprint, you can safely comment out the following line.
+    preprocessed->raw_points = raw_points;
   }
+
   odometry_estimation->insert_frame(preprocessed);
+
+  const size_t workload = odometry_estimation->workload();
+  spdlog::debug("workload={}", workload);
+
+  return workload;
 }
 
 bool GlimROS::needs_wait() {
