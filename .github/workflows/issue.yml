@@ -1,0 +1,15 @@
+on:
+  fork:
+  issues:
+    types: [opened]
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close issue
+        run: gh issue close "$NUMBER" -c "Please re-open the issue in the [GLIM main repository](https://github.com/koide3/glim/issues)."
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
