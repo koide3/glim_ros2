@@ -145,7 +145,14 @@ int main(int argc, char** argv) {
       } else if (msg->topic_name == points_topic) {
         auto points_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
         points_serialization.deserialize_message(&serialized_msg, points_msg.get());
-        glim->points_callback(points_msg);
+        const size_t workload = glim->points_callback(points_msg);
+
+        if (workload > 5) {
+          // Odometry estimation is behind
+          const size_t sleep_msec = (workload - 4) * 5;
+          spdlog::debug("throttling: {} msec (workload={})", sleep_msec, workload);
+          std::this_thread::sleep_for(std::chrono::milliseconds(sleep_msec));
+        }
       } else if (msg->topic_name == image_topic && topic_type == "sensor_msgs/msg/Image") {
         auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
         image_serialization.deserialize_message(&serialized_msg, image_msg.get());
