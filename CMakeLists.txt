@@ -9,6 +9,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(BUILD_WITH_CUDA "Build with GPU support" ON)
+option(BUILD_WITH_VIEWER "Build with visualizer" ON)
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
@@ -66,15 +67,17 @@ target_link_libraries(validator_node
   glim_ros
 )
 
-### offline_viewer ###
-ament_auto_add_executable(offline_viewer
-  src/offline_viewer.cpp
-)
-target_include_directories(offline_viewer PUBLIC
-  include
-)
-target_link_libraries(offline_viewer
-  glim::interactive_viewer
-)
+if(BUILD_WITH_VIEWER)
+  ### offline_viewer ###
+  ament_auto_add_executable(offline_viewer
+    src/offline_viewer.cpp
+  )
+  target_include_directories(offline_viewer PUBLIC
+    include
+  )
+  target_link_libraries(offline_viewer
+    glim::interactive_viewer
+  )
+endif()
 
 ament_auto_package()
