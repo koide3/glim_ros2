@@ -6,6 +6,8 @@
 #include <chrono>
 
 #include <rclcpp/rclcpp.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 
 #include <nav_msgs/msg/odometry.hpp>
@@ -47,14 +49,19 @@ private:
   std::atomic_bool kill_switch;
   std::thread thread;
 
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
 
   rclcpp::Time last_globalmap_pub_time;
 
   std::string imu_frame_id;
   std::string lidar_frame_id;
+  std::string base_frame_id;
   std::string odom_frame_id;
   std::string world_frame_id;
+  bool publish_imu2lidar;
+  double tf_time_offset;
 
   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> points_pub;
   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> aligned_points_pub;
