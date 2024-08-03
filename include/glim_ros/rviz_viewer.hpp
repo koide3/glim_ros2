@@ -59,7 +59,7 @@ private:
   std::string lidar_frame_id;
   std::string base_frame_id;
   std::string odom_frame_id;
-  std::string world_frame_id;
+  std::string map_frame_id;
   bool publish_imu2lidar;
   double tf_time_offset;
 

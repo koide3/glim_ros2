@@ -26,7 +26,7 @@ RvizViewer::RvizViewer() : logger(create_module_logger("rviz")) {
   }
 
   odom_frame_id = config.param<std::string>("glim_ros", "odom_frame_id", "odom");
-  world_frame_id = config.param<std::string>("glim_ros", "world_frame_id", "map");
+  map_frame_id = config.param<std::string>("glim_ros", "map_frame_id", "map");
   publish_imu2lidar = config.param<bool>("glim_ros", "publish_imu2lidar", true);
   tf_time_offset = config.param<double>("glim_ros", "tf_time_offset", 1e-6);
 
@@ -157,7 +157,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   }
 
   // World -> Odom
-  trans.header.frame_id = world_frame_id;
+  trans.header.frame_id = map_frame_id;
   trans.child_frame_id = odom_frame_id;
   trans.transform.translation.x = T_world_odom.translation().x();
   trans.transform.translation.y = T_world_odom.translation().y();
@@ -204,7 +204,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     // Publish sensor pose (with loop closure)
     geometry_msgs::msg::PoseStamped pose;
     pose.header.stamp = stamp;
-    pose.header.frame_id = world_frame_id;
+    pose.header.frame_id = map_frame_id;
     pose.pose.position.x = T_world_imu.translation().x();
     pose.pose.position.y = T_world_imu.translation().y();
     pose.pose.position.z = T_world_imu.translation().z();
@@ -228,7 +228,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
         frame_id = imu_frame_id;
         break;
       case FrameID::WORLD:
-        frame_id = world_frame_id;
+        frame_id = map_frame_id;
         break;
     }
 
@@ -251,7 +251,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     frame.times = new_frame->frame->times;
     frame.intensities = new_frame->frame->intensities;
 
-    auto points = frame_to_pointcloud2(world_frame_id, new_frame->stamp, frame);
+    auto points = frame_to_pointcloud2(map_frame_id, new_frame->stamp, frame);
     aligned_points_pub->publish(*points);
 
     logger->debug("published aligned_points (stamp={} num_points={})", new_frame->stamp, frame.size());
@@ -308,7 +308,7 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       begin += submap->size();
     }
 
-    auto points_msg = frame_to_pointcloud2(world_frame_id, now.seconds(), *merged);
+    auto points_msg = frame_to_pointcloud2(map_frame_id, now.seconds(), *merged);
     map_pub->publish(*points_msg);
   });
 }
