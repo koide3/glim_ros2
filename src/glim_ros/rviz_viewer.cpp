@@ -146,10 +146,10 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
       trans.transform.translation.x = T_odom_base.translation().x();
       trans.transform.translation.y = T_odom_base.translation().y();
       trans.transform.translation.z = T_odom_base.translation().z();
-      trans.transform.rotation.x = quat_odom_imu.x();
-      trans.transform.rotation.y = quat_odom_imu.y();
-      trans.transform.rotation.z = quat_odom_imu.z();
-      trans.transform.rotation.w = quat_odom_imu.w();
+      trans.transform.rotation.x = quat_odom_base.x();
+      trans.transform.rotation.y = quat_odom_base.y();
+      trans.transform.rotation.z = quat_odom_base.z();
+      trans.transform.rotation.w = quat_odom_base.w();
       tf_broadcaster->sendTransform(trans);
     } catch (const tf2::TransformException& e) {
       logger->warn("Failed to lookup transform from {} to {} (stamp={}.{}): {}", imu_frame_id, base_frame_id, stamp.sec, stamp.nanosec, e.what());
@@ -281,9 +281,9 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       return;
     }
 
-    // Publish global map every 30 seconds
+    // Publish global map every 10 seconds
     const rclcpp::Time now = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
-    if (now - last_globalmap_pub_time < std::chrono::seconds(30)) {
+    if (now - last_globalmap_pub_time < std::chrono::seconds(10)) {
       return;
     }
     last_globalmap_pub_time = now;
