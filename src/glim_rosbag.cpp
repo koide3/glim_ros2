@@ -200,8 +200,12 @@ int main(int argc, char** argv) {
     rclcpp::spin(glim);
   }
 
+  std::string dump_path = "/tmp/dump";
+  glim->declare_parameter<std::string>("dump_path", dump_path);
+  glim->get_parameter<std::string>("dump_path", dump_path);
+
   glim->wait(auto_quit);
-  glim->save("/tmp/dump");
+  glim->save(dump_path);
 
   return 0;
 }
