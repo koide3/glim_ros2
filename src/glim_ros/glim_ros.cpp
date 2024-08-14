@@ -70,6 +70,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   keep_raw_points = config_ros.param<bool>("glim_ros", "keep_raw_points", false);
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
+  points_time_offset = config_ros.param<double>("glim_ros", "points_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
 
   // Setup GPU-based linearization
@@ -235,6 +236,7 @@ size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstShared
     return 0;
   }
 
+  raw_points->stamp += points_time_offset;
   time_keeper->process(raw_points);
   auto preprocessed = preprocessor->preprocess(raw_points);
 
