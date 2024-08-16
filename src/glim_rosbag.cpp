@@ -7,6 +7,7 @@
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <rosbag2_cpp/reader.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
+#include <rosbag2_compression/sequential_compression_reader.hpp>
 #include <rosbag2_storage/storage_filter.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
@@ -103,8 +104,24 @@ int main(int argc, char** argv) {
   // Bag read function
   const auto read_bag = [&](const std::string& bag_filename) {
     spdlog::info("opening {}", bag_filename);
-    rosbag2_cpp::Reader reader;
-    reader.open(bag_filename);
+    rosbag2_storage::StorageOptions options;
+    options.uri = bag_filename;
+
+    rosbag2_cpp::ConverterOptions converter_options;
+
+    // rosbag2_cpp::Reader reader;
+    std::unique_ptr<rosbag2_cpp::reader_interfaces::BaseReaderInterface> reader_;
+    reader_ = std::make_unique<rosbag2_cpp::readers::SequentialReader>();
+    reader_->open(options, converter_options);
+
+    if (reader_->get_metadata().compression_format != "") {
+      spdlog::info("compression detected (format={})", reader_->get_metadata().compression_format);
+      spdlog::info("opening bag with SequentialCompressionReader");
+      reader_ = std::make_unique<rosbag2_compression::SequentialCompressionReader>();
+      reader_->open(options, converter_options);
+    }
+
+    auto& reader = *reader_;
     reader.set_filter(filter);
 
     const auto topics_and_types = reader.get_all_topics_and_types();
