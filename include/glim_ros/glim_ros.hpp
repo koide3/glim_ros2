@@ -47,6 +47,7 @@ private:
 
   bool keep_raw_points;
   double imu_time_offset;
+  double points_time_offset;
   double acc_scale;
 
   // Extension modulles

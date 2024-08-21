@@ -103,7 +103,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
   {
     // Transform the odometry frame to the global optimization-based world frame
     std::lock_guard<std::mutex> lock(trajectory_mutex);
-    trajectory->add_odom(new_frame->stamp, new_frame->T_world_imu);
+    trajectory->add_odom(new_frame->stamp, new_frame->T_world_imu, 1);
     T_world_odom = trajectory->get_T_world_odom();
     quat_world_odom = Eigen::Quaterniond(T_world_odom.linear());
 
