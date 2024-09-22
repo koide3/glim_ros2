@@ -96,10 +96,33 @@ int main(int argc, char** argv) {
     spdlog::info("- {}", bag_filename);
   }
 
+  // Playback range settings
+  double delay = 0.0;
+  glim->declare_parameter<double>("delay", delay);
+  glim->get_parameter<double>("delay", delay);
+
+  double start_offset = 0.0;
+  glim->declare_parameter<double>("start_offset", start_offset);
+  glim->get_parameter<double>("start_offset", start_offset);
+
+  double playback_duration = 0.0;
+  glim->declare_parameter<double>("playback_duration", playback_duration);
+  glim->get_parameter<double>("playback_duration", playback_duration);
+
+  double playback_until = 0.0;
+  glim->declare_parameter<double>("playback_until", playback_until);
+  glim->get_parameter<double>("playback_until", playback_until);
+
+  // Playback speed settings
   const double playback_speed = config_ros.param<double>("glim_ros", "playback_speed", 100.0);
   const auto real_t0 = std::chrono::high_resolution_clock::now();
   rcutils_time_point_value_t bag_t0 = 0;
   SpeedCounter speed_counter;
+
+  if (delay > 0.0) {
+    spdlog::info("delaying {} sec", delay);
+    std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(delay * 1000)));
+  }
 
   // Bag read function
   const auto read_bag = [&](const std::string& bag_filename) {
@@ -145,9 +168,24 @@ int main(int argc, char** argv) {
       const rclcpp::SerializedMessage serialized_msg(*msg->serialized_data);
 
       const auto msg_time = get_msg_recv_timestamp(*msg);
-
       if (bag_t0 == 0) {
         bag_t0 = msg_time;
+      }
+      spdlog::debug("msg_time: {} ({} sec)", msg_time / 1e9, (msg_time - bag_t0) / 1e9);
+
+      if (start_offset > 0.0 && msg_time - bag_t0 < start_offset * 1e9) {
+        spdlog::debug("skipping msg for start_offset ({} < {})", (msg_time - bag_t0) / 1e9, start_offset);
+        continue;
+      }
+
+      if (playback_until > 0.0 && msg_time / 1e9 > playback_until) {
+        spdlog::info("reached playback_until ({} < {})", msg_time / 1e9, playback_until);
+        return false;
+      }
+
+      if (playback_duration > 0.0 && (msg_time - bag_t0) / 1e9 > playback_duration) {
+        spdlog::info("reached playback_duration ({} > {})", (msg_time - bag_t0) / 1e9, playback_duration);
+        return false;
       }
 
       const auto bag_elapsed = std::chrono::nanoseconds(msg_time - bag_t0);
