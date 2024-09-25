@@ -27,14 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.PAT }}
           path: glim_ros2
           submodules: recursive
 
       - uses: actions/checkout@v2
         with:
           repository: koide3/glim
-          token: ${{ secrets.PAT }}
           path: glim
           submodules: recursive
 
