@@ -250,23 +250,24 @@ int main(int argc, char** argv) {
   };
 
   // Read all rosbags
-  for (const auto& bag_filename : bag_filenames) {
-    if (!read_bag(bag_filename)) {
-      break;
-    }
-  }
-
   bool auto_quit = false;
   glim->declare_parameter<bool>("auto_quit", auto_quit);
   glim->get_parameter<bool>("auto_quit", auto_quit);
 
-  if (!auto_quit) {
-    rclcpp::spin(glim);
-  }
-
   std::string dump_path = "/tmp/dump";
   glim->declare_parameter<std::string>("dump_path", dump_path);
   glim->get_parameter<std::string>("dump_path", dump_path);
+
+  for (const auto& bag_filename : bag_filenames) {
+    if (!read_bag(bag_filename)) {
+      auto_quit = true;
+      break;
+    }
+  }
+
+  if (!auto_quit) {
+    rclcpp::spin(glim);
+  }
 
   glim->wait(auto_quit);
   glim->save(dump_path);
