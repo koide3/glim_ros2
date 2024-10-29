@@ -119,6 +119,10 @@ int main(int argc, char** argv) {
   rcutils_time_point_value_t bag_t0 = 0;
   SpeedCounter speed_counter;
 
+  double end_time = std::numeric_limits<double>::max();
+  glim->declare_parameter<double>("end_time", end_time);
+  glim->get_parameter<double>("end_time", end_time);
+
   if (delay > 0.0) {
     spdlog::info("delaying {} sec", delay);
     std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(delay * 1000)));
@@ -201,6 +205,11 @@ int main(int argc, char** argv) {
         auto points_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
         points_serialization.deserialize_message(&serialized_msg, points_msg.get());
         const size_t workload = glim->points_callback(points_msg);
+
+        if (points_msg->header.stamp.sec + points_msg->header.stamp.nanosec * 1e-9 > end_time) {
+          spdlog::info("end_time reached");
+          return false;
+        }
 
         if (workload > 5) {
           // Odometry estimation is behind
