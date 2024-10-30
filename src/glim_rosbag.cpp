@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <boost/format.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <cv_bridge/cv_bridge.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <rosbag2_cpp/reader.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
@@ -224,6 +225,10 @@ int main(int argc, char** argv) {
       } else if (msg->topic_name == image_topic && topic_type == "sensor_msgs/msg/CompressedImage") {
         auto compressed_image_msg = std::make_shared<sensor_msgs::msg::CompressedImage>();
         compressed_image_serialization.deserialize_message(&serialized_msg, compressed_image_msg.get());
+
+        auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
+        cv_bridge::toCvCopy(*compressed_image_msg, "bgr8")->toImageMsg(*image_msg);
+        glim->image_callback(image_msg);
       }
 
       auto found = subscription_map.find(msg->topic_name);

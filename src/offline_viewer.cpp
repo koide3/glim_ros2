@@ -1,4 +1,5 @@
 #include <iostream>
+#include <spdlog/spdlog.h>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <glim/util/config.hpp>
@@ -11,13 +12,13 @@ int main(int argc, char** argv) {
     config_path = ament_index_cpp::get_package_share_directory("glim") + "/" + config_path;
   }
 
-  std::cout << "config_path: " << config_path << std::endl;
+  spdlog::info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
 
   std::string init_map_path;
   if (argc >= 2) {
     init_map_path = argv[1];
-    std::cout << "map_path=" << init_map_path << std::endl;
+    spdlog::info("map_path={}", init_map_path);
   }
 
   glim::OfflineViewer viewer(init_map_path);
