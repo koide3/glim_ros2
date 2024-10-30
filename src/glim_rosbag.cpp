@@ -4,7 +4,6 @@
 #include <spdlog/spdlog.h>
 #include <boost/format.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <cv_bridge/cv_bridge.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <rosbag2_cpp/reader.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
