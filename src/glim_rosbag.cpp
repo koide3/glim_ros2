@@ -163,6 +163,7 @@ int main(int argc, char** argv) {
     rclcpp::Serialization<sensor_msgs::msg::CompressedImage> compressed_image_serialization;
 
     while (reader.has_next()) {
+      rclcpp::spin_some(glim);
       if (!rclcpp::ok()) {
         return false;
       }
@@ -242,6 +243,7 @@ int main(int argc, char** argv) {
 
       const auto t0 = std::chrono::high_resolution_clock::now();
       while (glim->needs_wait()) {
+        rclcpp::spin_some(glim);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if (std::chrono::high_resolution_clock::now() - t0 > std::chrono::seconds(1)) {
           spdlog::warn("throttling timeout (an extension module may be hanged)");
