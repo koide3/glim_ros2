@@ -1,11 +1,18 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <glim/util/config.hpp>
+#include <glim/util/logging.hpp>
 #include <glim/viewer/offline_viewer.hpp>
 
 int main(int argc, char** argv) {
+  // Setup logger
+  auto logger = spdlog::stdout_color_mt("glim");
+  logger->sinks().push_back(glim::get_ringbuffer_sink());
+  spdlog::set_default_logger(logger);
+
   std::string config_path = "config";
   if (config_path[0] != '/') {
     // config_path is relative to the glim directory
