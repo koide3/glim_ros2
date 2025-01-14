@@ -40,9 +40,8 @@ namespace glim {
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
   // Setup logger
   auto logger = spdlog::stdout_color_mt("glim");
+  logger->sinks().push_back(get_ringbuffer_sink());
   spdlog::set_default_logger(logger);
-  auto ringbuffer_sink = get_ringbuffer_sink();
-  logger->sinks().push_back(ringbuffer_sink);
 
   bool debug = false;
   this->declare_parameter<bool>("debug", false);
@@ -64,7 +63,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     config_path = ament_index_cpp::get_package_share_directory("glim") + "/" + config_path;
   }
 
-  spdlog::info("config_path: {}", config_path);
+  logger->info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
 
