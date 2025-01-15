@@ -90,6 +90,7 @@ void RvizViewer::set_callbacks() {
 void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) {
   const Eigen::Isometry3d T_odom_imu = new_frame->T_world_imu;
   const Eigen::Quaterniond quat_odom_imu(T_odom_imu.linear());
+  const Eigen::Vector3d v_odom_imu = new_frame->v_world_imu;
 
   const Eigen::Isometry3d T_lidar_imu = new_frame->T_lidar_imu;
   const Eigen::Quaterniond quat_lidar_imu(T_lidar_imu.linear());
@@ -195,6 +196,11 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame) 
     odom.pose.pose.orientation.y = quat_odom_imu.y();
     odom.pose.pose.orientation.z = quat_odom_imu.z();
     odom.pose.pose.orientation.w = quat_odom_imu.w();
+
+    odom.twist.twist.linear.x = v_odom_imu.x();
+    odom.twist.twist.linear.y = v_odom_imu.y();
+    odom.twist.twist.linear.z = v_odom_imu.z();
+
     odom_pub->publish(odom);
 
     logger->debug("published odom (stamp={})", new_frame->stamp);
