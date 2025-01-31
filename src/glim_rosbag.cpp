@@ -163,10 +163,10 @@ int main(int argc, char** argv) {
     rclcpp::Serialization<sensor_msgs::msg::CompressedImage> compressed_image_serialization;
 
     while (reader.has_next()) {
-      rclcpp::spin_some(glim);
       if (!rclcpp::ok()) {
         return false;
       }
+      rclcpp::spin_some(glim);
 
       const auto msg = reader.read_next();
       const std::string topic_type = topic_type_map[msg->topic_name];

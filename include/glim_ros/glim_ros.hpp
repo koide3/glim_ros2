@@ -49,6 +49,7 @@ private:
   double imu_time_offset;
   double points_time_offset;
   double acc_scale;
+  bool dump_on_unload;
 
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
