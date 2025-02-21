@@ -210,10 +210,18 @@ int main(int argc, char** argv) {
       }
 
       if (msg->topic_name == imu_topic) {
+        if (topic_type != "sensor_msgs/msg/Imu") {
+          spdlog::error("topic_type mismatch: {} != sensor_msgs/msg/Imu (topic={})", topic_type, msg->topic_name);
+          return false;
+        }
         auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
         imu_serialization.deserialize_message(&serialized_msg, imu_msg.get());
         glim->imu_callback(imu_msg);
       } else if (msg->topic_name == points_topic) {
+        if (topic_type != "sensor_msgs/msg/PointCloud2") {
+          spdlog::error("topic_type mismatch: {} != sensor_msgs/msg/PointCloud2 (topic={})", topic_type, msg->topic_name);
+          return false;
+        }
         auto points_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
         points_serialization.deserialize_message(&serialized_msg, points_msg.get());
         const size_t workload = glim->points_callback(points_msg);
@@ -229,23 +237,28 @@ int main(int argc, char** argv) {
           spdlog::debug("throttling: {} msec (workload={})", sleep_msec, workload);
           std::this_thread::sleep_for(std::chrono::milliseconds(sleep_msec));
         }
-      } else if (msg->topic_name == image_topic && topic_type == "sensor_msgs/msg/Image") {
-        auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
-        image_serialization.deserialize_message(&serialized_msg, image_msg.get());
-        glim->image_callback(image_msg);
-      } else if (msg->topic_name == image_topic && topic_type == "sensor_msgs/msg/CompressedImage") {
-        auto compressed_image_msg = std::make_shared<sensor_msgs::msg::CompressedImage>();
-        compressed_image_serialization.deserialize_message(&serialized_msg, compressed_image_msg.get());
+      } else if (msg->topic_name == image_topic) {
+        if (topic_type == "sensor_msgs/msg/Image") {
+          auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
+          image_serialization.deserialize_message(&serialized_msg, image_msg.get());
+          glim->image_callback(image_msg);
+        } else if (topic_type == "sensor_msgs/msg/CompressedImage") {
+          auto compressed_image_msg = std::make_shared<sensor_msgs::msg::CompressedImage>();
+          compressed_image_serialization.deserialize_message(&serialized_msg, compressed_image_msg.get());
 
-        auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
-        cv_bridge::toCvCopy(*compressed_image_msg, "bgr8")->toImageMsg(*image_msg);
-        glim->image_callback(image_msg);
+          auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
+          cv_bridge::toCvCopy(*compressed_image_msg, "bgr8")->toImageMsg(*image_msg);
+          glim->image_callback(image_msg);
+        } else {
+          spdlog::error("topic_type mismatch: {} != sensor_msgs/msg/(Image|CompressedImage) (topic={})", topic_type, msg->topic_name);
+          return false;
+        }
       }
 
       auto found = subscription_map.find(msg->topic_name);
       if (found != subscription_map.end()) {
         for (const auto& sub : found->second) {
-          sub->insert_message_instance(serialized_msg);
+          sub->insert_message_instance(serialized_msg, topic_type);
         }
       }
 
