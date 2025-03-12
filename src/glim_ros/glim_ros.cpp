@@ -176,7 +176,9 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   imu_qos.get_rmw_qos_profile().depth = 1000;
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
+  #ifdef BUILD_WITH_CV_BRIDGE
   image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", rmw_qos_profile_sensor_data);
+#endif
 
   for (const auto& sub : this->extension_subscriptions()) {
     spdlog::debug("subscribe to {}", sub->topic);
@@ -225,6 +227,7 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
   }
 }
 
+#ifdef BUILD_WITH_CV_BRIDGE
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
   spdlog::trace("image: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
 
@@ -239,6 +242,7 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
     global_mapping->insert_image(stamp, cv_image->image);
   }
 }
+#endif
 
 size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
   spdlog::trace("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
