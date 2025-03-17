@@ -176,7 +176,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   imu_qos.get_rmw_qos_profile().depth = 1000;
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
-  #ifdef BUILD_WITH_CV_BRIDGE
+#ifdef BUILD_WITH_CV_BRIDGE
   image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", rmw_qos_profile_sensor_data);
 #endif
 
@@ -342,7 +342,7 @@ void GlimROS::wait(bool auto_quit) {
 }
 
 void GlimROS::save(const std::string& path) {
-  global_mapping->save(path);
+  if (global_mapping) global_mapping->save(path);
   for (auto& module : extension_modules) {
     module->at_exit(path);
   }
