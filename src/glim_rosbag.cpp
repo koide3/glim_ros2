@@ -159,8 +159,10 @@ int main(int argc, char** argv) {
 
     rclcpp::Serialization<sensor_msgs::msg::Imu> imu_serialization;
     rclcpp::Serialization<sensor_msgs::msg::PointCloud2> points_serialization;
+#ifdef BUILD_WITH_CV_BRIDGE
     rclcpp::Serialization<sensor_msgs::msg::Image> image_serialization;
     rclcpp::Serialization<sensor_msgs::msg::CompressedImage> compressed_image_serialization;
+#endif
 
     while (reader.has_next()) {
       if (!rclcpp::ok()) {
@@ -237,7 +239,9 @@ int main(int argc, char** argv) {
           spdlog::debug("throttling: {} msec (workload={})", sleep_msec, workload);
           std::this_thread::sleep_for(std::chrono::milliseconds(sleep_msec));
         }
-      } else if (msg->topic_name == image_topic) {
+      }
+#ifdef BUILD_WITH_CV_BRIDGE
+      else if (msg->topic_name == image_topic) {
         if (topic_type == "sensor_msgs/msg/Image") {
           auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
           image_serialization.deserialize_message(&serialized_msg, image_msg.get());
@@ -254,6 +258,7 @@ int main(int argc, char** argv) {
           return false;
         }
       }
+#endif
 
       auto found = subscription_map.find(msg->topic_name);
       if (found != subscription_map.end()) {

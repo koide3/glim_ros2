@@ -2,6 +2,7 @@
 
 #include <functional>
 
+#ifdef BUILD_WITH_CV_BRIDGE
 #ifdef CV_BRIDGE_INCLUDE_H
 // For ROS2 humble or earlier
 #include <cv_bridge/cv_bridge.h>
@@ -10,6 +11,7 @@
 #include <cv_bridge/cv_bridge.hpp>
 #else
 #error File extension of cv_bridge is unknown!!
+#endif
 #endif
 
 // For ROS2 humble or earlier
