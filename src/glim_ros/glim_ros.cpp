@@ -80,6 +80,10 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   points_time_offset = config_ros.param<double>("glim_ros", "points_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
 
+  glim::Config config_sensors(glim::GlobalConfig::get_config_path("config_sensors"));
+  intensity_field = config_sensors.param<std::string>("sensors", "intensity_field", "intensity");
+  ring_field = config_sensors.param<std::string>("sensors", "ring_field", "");
+
   // Setup GPU-based linearization
 #ifdef BUILD_GTSAM_POINTS_GPU
   gtsam_points::LinearizationHook::register_hook([]() { return gtsam_points::create_nonlinear_factor_set_gpu(); });
@@ -247,7 +251,7 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
 size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
   spdlog::trace("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
 
-  auto raw_points = glim::extract_raw_points(msg);
+  auto raw_points = glim::extract_raw_points(*msg, intensity_field, ring_field);
   if (raw_points == nullptr) {
     spdlog::warn("failed to extract points from message");
     return 0;
