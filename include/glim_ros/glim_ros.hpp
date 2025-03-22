@@ -55,6 +55,8 @@ private:
   double acc_scale;
   bool dump_on_unload;
 
+  std::string intensity_field, ring_field;
+
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
   std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
