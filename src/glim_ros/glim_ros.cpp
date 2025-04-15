@@ -23,6 +23,7 @@
 #include <gtsam_points/optimizers/linearization_hook.hpp>
 #include <gtsam_points/cuda/nonlinear_factor_set_gpu_create.hpp>
 
+#include <glim/util/debug.hpp>
 #include <glim/util/config.hpp>
 #include <glim/util/logging.hpp>
 #include <glim/util/time_keeper.hpp>
@@ -52,6 +53,8 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/tmp/glim_log.log", true);
     logger->sinks().push_back(file_sink);
     logger->set_level(spdlog::level::trace);
+
+    print_system_info(logger);
   }
 
   dump_on_unload = false;
