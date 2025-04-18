@@ -35,6 +35,7 @@
 #include <glim/mapping/async_sub_mapping.hpp>
 #include <glim/mapping/async_global_mapping.hpp>
 #include <glim_ros/ros_compatibility.hpp>
+#include <glim_ros/ros_qos.hpp>
 
 namespace glim {
 
@@ -179,12 +180,16 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "");
 
   // Subscribers
-  auto imu_qos = rclcpp::SensorDataQoS();
-  imu_qos.get_rmw_qos_profile().depth = 1000;
-  imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&GlimROS::imu_callback, this, _1));
-  points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, rclcpp::SensorDataQoS(), std::bind(&GlimROS::points_callback, this, _1));
+  rclcpp::SensorDataQoS default_imu_qos;
+  default_imu_qos.get_rmw_qos_profile().depth = 1000;
+  auto qos = get_qos_settings(config_ros, "glim_ros", "imu_qos", default_imu_qos);
+  imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, qos, std::bind(&GlimROS::imu_callback, this, _1));
+
+  qos = get_qos_settings(config_ros, "glim_ros", "points_qos");
+  points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, qos, std::bind(&GlimROS::points_callback, this, _1));
 #ifdef BUILD_WITH_CV_BRIDGE
-  image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", rmw_qos_profile_sensor_data);
+  qos = get_qos_settings(config_ros, "glim_ros", "image_qos");
+  image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", qos.get_rmw_qos_profile());
 #endif
 
   for (const auto& sub : this->extension_subscriptions()) {
