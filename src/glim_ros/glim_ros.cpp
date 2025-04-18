@@ -34,11 +34,9 @@
 #include <glim/mapping/async_sub_mapping.hpp>
 #include <glim/mapping/async_global_mapping.hpp>
 #include <glim_ros/ros_compatibility.hpp>
+#include <glim_ros/ros_qos.hpp>
 
 namespace glim {
-
-static bool init_qos_profile(const std::string& name, rmw_qos_profile_t& profile);
-static void get_qos(std::shared_ptr<spdlog::logger> logger, const Config& config_ros, const std::string& module_name, rclcpp::QoS& profile);
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
   // Setup logger
@@ -175,15 +173,13 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   const std::string image_topic = config_ros.param<std::string>("glim_ros", "image_topic", "");
 
   // Subscribers
-  rclcpp::QoS qos{0};
-
-  get_qos(logger, config_ros, "imu_qos", qos);
+  auto qos = get_qos_settings(config_ros, "glim_ros", "imu_qos");
   imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, qos, std::bind(&GlimROS::imu_callback, this, _1));
 
-  get_qos(logger, config_ros, "points_qos", qos);
+  qos = get_qos_settings(config_ros, "glim_ros", "points_qos");
   points_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(points_topic, qos, std::bind(&GlimROS::points_callback, this, _1));
 #ifdef BUILD_WITH_CV_BRIDGE
-  get_qos(logger, config_ros, "image_qos", qos);
+  qos = get_qos_settings(config_ros, "glim_ros", "image_qos");
   image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", qos.get_rmw_qos_profile());
 #endif
 
@@ -355,84 +351,6 @@ void GlimROS::save(const std::string& path) {
   }
 }
 
-bool init_qos_profile(const std::string& name, rmw_qos_profile_t& profile) {
-  bool found = true;
-  if (name == "default") {
-    profile = rmw_qos_profile_default;
-  } else if (name == "system_default") {
-    profile = rmw_qos_profile_system_default;
-  } else if (name == "sensor_data") {
-    profile = rmw_qos_profile_sensor_data;
-  } else if (name == "services_default") {
-    profile = rmw_qos_profile_services_default;
-  } else if (name == "parameters") {
-    profile = rmw_qos_profile_parameters;
-  } else if (name == "parameter_events") {
-    profile = rmw_qos_profile_parameter_events;
-  } else {
-    profile = rmw_qos_profile_default;
-    found = false;
-  }
-  return found;
-}
-
-void get_qos(std::shared_ptr<spdlog::logger> logger, const Config& config_ros, const std::string& module_name, rclcpp::QoS& qos) {
-  std::vector<std::string> module_path;
-  module_path.push_back("glim_ros");
-  module_path.push_back(module_name);
-
-  rmw_qos_profile_t profile;
-  auto profile_name = config_ros.param_nested<std::string>(module_path, "profile", "sensor_data");
-  if (!init_qos_profile(profile_name, profile)) {
-    logger->warn("unknown QoS profile '{}', falling back to 'default'.", profile_name);
-  }
-
-  auto depth = config_ros.param_nested<int>(module_path, "depth");
-  if (depth.has_value()) {
-    profile.depth = depth.value();
-  }
-
-  auto str = config_ros.param_nested<std::string>(module_path, "durability");
-  if (str.has_value()) {
-    auto value = rmw_qos_durability_policy_from_str(str.value().c_str());
-    if (value == RMW_QOS_POLICY_DURABILITY_UNKNOWN) {
-      logger->warn("ignoring unknown durability policy '{}'.", str.value());
-    } else {
-      profile.durability = value;
-    }
-  }
-
-  str = config_ros.param_nested<std::string>(module_path, "reliability");
-  if (str.has_value()) {
-    auto value = rmw_qos_reliability_policy_from_str(str.value().c_str());
-    if (value == RMW_QOS_POLICY_RELIABILITY_UNKNOWN) {
-      logger->warn("ignoring unknown reliability policy '{}'.", str.value());
-    } else {
-      profile.reliability = value;
-    }
-  }
-
-  str = config_ros.param_nested<std::string>(module_path, "history");
-  if (str.has_value()) {
-    auto value = rmw_qos_history_policy_from_str(str.value().c_str());
-    if (value == RMW_QOS_POLICY_HISTORY_UNKNOWN) {
-      logger->warn("ignoring unknown history policy '{}'.", str.value());
-    } else {
-      profile.history = value;
-    }
-  }
-
-  qos = rclcpp::QoS(rclcpp::QoSInitialization::from_rmw(profile), profile);
-
-  logger->trace(
-    "{}: profile={}, depth={}, history={}, reliability={}, durability={}",
-    module_name,
-    profile_name,
-    qos.depth(),
-    rmw_qos_history_policy_to_str(qos.get_rmw_qos_profile().history),
-    rmw_qos_reliability_policy_to_str(qos.get_rmw_qos_profile().reliability),
-    rmw_qos_durability_policy_to_str(qos.get_rmw_qos_profile().durability));
-}
 }  // namespace glim
 
 RCLCPP_COMPONENTS_REGISTER_NODE(glim::GlimROS);
