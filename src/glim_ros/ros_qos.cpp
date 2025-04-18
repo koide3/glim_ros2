@@ -87,16 +87,12 @@ static bool get_qos(const Config& config_ros, const std::string& module_name, co
   return is_configured;
 }
 
-rclcpp::QoS get_qos_settings(const Config& config_ros, const std::string& module_name, const std::string& param_name) {
+rclcpp::QoS get_qos_settings(const Config& config_ros, const std::string& module_name, const std::string& param_name, const std::optional<rclcpp::QoS>& default_qos) {
   std::string profile_name;
   rclcpp::QoS qos{0};
 
-  // Here we ensure the following default behavior:
-  //   - imu_qos: { "profile": "sensor_data", "depth": 1000 }
-  //   - points_qos: { "profile": "sensor_data" }
-  //   - image_qos: { "profile": "sensor_data" }
-  if (!get_qos(config_ros, module_name, param_name, profile_name, qos) && param_name == "imu_qos") {
-    qos.get_rmw_qos_profile().depth = 1000;
+  if (!get_qos(config_ros, module_name, param_name, profile_name, qos) && default_qos.has_value()) {
+    qos = default_qos.value();
   }
 
   spdlog::trace(
