@@ -90,6 +90,15 @@ if(BUILD_WITH_VIEWER)
     glim::interactive_viewer
     Boost::program_options
   )
+
+  ### map_editor ###
+  ament_auto_add_executable(map_editor
+    src/map_editor.cpp
+  )
+  target_link_libraries(map_editor
+    glim::map_editor
+    Boost::program_options
+  )
 endif()
 
 ament_auto_package()
