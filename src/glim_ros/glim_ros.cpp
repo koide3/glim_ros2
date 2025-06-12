@@ -374,7 +374,7 @@ void GlimROS::timer_callback() {
     if (global_mapping) {
       // Check if global_mapping was actually initialized (e.g. not disabled by config)
       spdlog::info("Loading map into GlobalMapping module from path: {}", path_to_load);
-      if (global_mapping->instance()->load(path_to_load)) {
+      if (global_mapping->get_global_mapping()->load(path_to_load)) {
         spdlog::info("Map successfully loaded into GlobalMapping.");
         // TODO: Add logic for initial pose application here if it were part of this step
       } else {
