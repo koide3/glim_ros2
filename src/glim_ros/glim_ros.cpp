@@ -371,19 +371,30 @@ void GlimROS::timer_callback() {
     initialize_core_slam_modules();
 
     // 3. Load map into GlobalMapping
-    if (global_mapping) {
+    if (global_mapping) { // This checks if AsyncGlobalMapping unique_ptr is valid
       // Check if global_mapping was actually initialized (e.g. not disabled by config)
       spdlog::info("Loading map into GlobalMapping module from path: {}", path_to_load);
-      if (global_mapping->get_global_mapping()->load(path_to_load)) {
-        spdlog::info("Map successfully loaded into GlobalMapping.");
-        // TODO: Add logic for initial pose application here if it were part of this step
+      // Previous attempt: if (global_mapping->get_global_mapping()->load(path_to_load))
+      // We need to replace the call above with the dynamic_cast logic.
+
+      std::shared_ptr<glim::GlobalMappingBase> base_mapping_ptr = global_mapping->get_global_mapping();
+      if (base_mapping_ptr) {
+        std::shared_ptr<glim::GlobalMapping> derived_mapping_ptr = std::dynamic_pointer_cast<glim::GlobalMapping>(base_mapping_ptr);
+        if (derived_mapping_ptr) {
+          if (derived_mapping_ptr->load(path_to_load)) {
+            spdlog::info("Map successfully loaded into GlobalMapping.");
+            // TODO: Add logic for initial pose application here if it were part of this step
+          } else {
+            spdlog::error("Failed to load map using GlobalMapping::load from path: {}", path_to_load);
+          }
+        } else {
+          spdlog::error("Failed to dynamically cast GlobalMappingBase to GlobalMapping. Cannot load map. Type mismatch or RTTI issue?");
+        }
       } else {
-        spdlog::error("Failed to load map into GlobalMapping from path: {}", path_to_load);
-        // Consider how to handle this error. Maybe re-initialize to a clean SLAM state or stop?
-        // For now, it will continue with a fresh SLAM if load fails.
+        spdlog::warn("AsyncGlobalMapping returned a null GlobalMappingBase pointer. Cannot load map.");
       }
     } else {
-      spdlog::warn("GlobalMapping module is not available/initialized. Cannot load map.");
+      spdlog::warn("GlobalMapping module (AsyncGlobalMapping wrapper) is not available/initialized. Cannot load map.");
     }
     spdlog::info("Map load process completed in timer_callback.");
   }
