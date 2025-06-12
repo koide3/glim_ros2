@@ -93,47 +93,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   gtsam_points::LinearizationHook::register_hook([]() { return gtsam_points::create_nonlinear_factor_set_gpu(); });
 #endif
 
-  // Preprocessing
-  time_keeper.reset(new glim::TimeKeeper);
-  preprocessor.reset(new glim::CloudPreprocessor);
-
-  // Odometry estimation
-  glim::Config config_odometry(glim::GlobalConfig::get_config_path("config_odometry"));
-  const std::string odometry_estimation_so_name = config_odometry.param<std::string>("odometry_estimation", "so_name", "libodometry_estimation_cpu.so");
-  spdlog::info("load {}", odometry_estimation_so_name);
-
-  std::shared_ptr<glim::OdometryEstimationBase> odom = OdometryEstimationBase::load_module(odometry_estimation_so_name);
-  if (!odom) {
-    spdlog::critical("failed to load odometry estimation module");
-    abort();
-  }
-  odometry_estimation.reset(new glim::AsyncOdometryEstimation(odom, odom->requires_imu()));
-
-  // Sub mapping
-  if (config_ros.param<bool>("glim_ros", "enable_local_mapping", true)) {
-    const std::string sub_mapping_so_name =
-      glim::Config(glim::GlobalConfig::get_config_path("config_sub_mapping")).param<std::string>("sub_mapping", "so_name", "libsub_mapping.so");
-    if (!sub_mapping_so_name.empty()) {
-      spdlog::info("load {}", sub_mapping_so_name);
-      auto sub = SubMappingBase::load_module(sub_mapping_so_name);
-      if (sub) {
-        sub_mapping.reset(new AsyncSubMapping(sub));
-      }
-    }
-  }
-
-  // Global mapping
-  if (config_ros.param<bool>("glim_ros", "enable_global_mapping", true)) {
-    const std::string global_mapping_so_name =
-      glim::Config(glim::GlobalConfig::get_config_path("config_global_mapping")).param<std::string>("global_mapping", "so_name", "libglobal_mapping.so");
-    if (!global_mapping_so_name.empty()) {
-      spdlog::info("load {}", global_mapping_so_name);
-      auto global = GlobalMappingBase::load_module(global_mapping_so_name);
-      if (global) {
-        global_mapping.reset(new AsyncGlobalMapping(global));
-      }
-    }
-  }
+  initialize_core_slam_modules();
 
   // Extention modules
   const auto extensions = config_ros.param<std::vector<std::string>>("glim_ros", "extension_modules");
@@ -212,6 +172,100 @@ GlimROS::~GlimROS() {
     wait(true);
     save(dump_path);
   }
+}
+
+void GlimROS::request_map_load_from_gui(const std::string& map_path) {
+  std::lock_guard<std::mutex> lock(map_load_mutex_);
+  map_load_requested_ = true;
+  requested_map_path_ = map_path;
+  spdlog::info("Map load requested from GUI: {}", map_path); // Optional: for logging
+}
+
+void GlimROS::initialize_core_slam_modules() {
+    spdlog::info("Initializing core SLAM modules...");
+
+    // TimeKeeper and Preprocessor initialization
+    time_keeper.reset(new glim::TimeKeeper);
+    preprocessor.reset(new glim::CloudPreprocessor);
+    spdlog::debug("TimeKeeper and CloudPreprocessor initialized.");
+
+    // Odometry estimation initialization
+    glim::Config config_odometry(glim::GlobalConfig::get_config_path("config_odometry"));
+    const std::string odometry_estimation_so_name = config_odometry.param<std::string>("odometry_estimation", "so_name", "libodometry_estimation_cpu.so");
+    spdlog::info("load {}", odometry_estimation_so_name);
+
+    std::shared_ptr<glim::OdometryEstimationBase> odom = OdometryEstimationBase::load_module(odometry_estimation_so_name);
+    if (!odom) {
+        spdlog::critical("failed to load odometry estimation module");
+        // Consider how to handle this error. Throwing an exception might be appropriate
+        // or setting an error state that the calling code can check.
+        // For now, following existing pattern of abort().
+        abort();
+    }
+    odometry_estimation.reset(new glim::AsyncOdometryEstimation(odom, odom->requires_imu()));
+    spdlog::debug("Odometry estimation module initialized.");
+
+    // Sub mapping initialization
+    // Retain existing logic for checking "enable_local_mapping"
+    glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros")); // Assuming config_ros is needed here, or pass it if it's local to constructor
+    if (config_ros.param<bool>("glim_ros", "enable_local_mapping", true)) {
+        const std::string sub_mapping_so_name =
+          glim::Config(glim::GlobalConfig::get_config_path("config_sub_mapping")).param<std::string>("sub_mapping", "so_name", "libsub_mapping.so");
+        if (!sub_mapping_so_name.empty()) {
+            spdlog::info("load {}", sub_mapping_so_name);
+            auto sub = SubMappingBase::load_module(sub_mapping_so_name);
+            if (sub) {
+                sub_mapping.reset(new AsyncSubMapping(sub));
+                spdlog::debug("Sub mapping module initialized.");
+            } else {
+                spdlog::warn("Failed to load sub mapping module: {}", sub_mapping_so_name);
+            }
+        }
+    } else {
+        spdlog::info("Local mapping is disabled.");
+    }
+
+    // Global mapping initialization
+    // Retain existing logic for checking "enable_global_mapping"
+    if (config_ros.param<bool>("glim_ros", "enable_global_mapping", true)) {
+        const std::string global_mapping_so_name =
+          glim::Config(glim::GlobalConfig::get_config_path("config_global_mapping")).param<std::string>("global_mapping", "so_name", "libglobal_mapping.so");
+        if (!global_mapping_so_name.empty()) {
+            spdlog::info("load {}", global_mapping_so_name);
+            auto global = GlobalMappingBase::load_module(global_mapping_so_name);
+            if (global) {
+                global_mapping.reset(new AsyncGlobalMapping(global));
+                spdlog::debug("Global mapping module initialized.");
+            } else {
+                spdlog::warn("Failed to load global mapping module: {}", global_mapping_so_name);
+            }
+        }
+    } else {
+        spdlog::info("Global mapping is disabled.");
+    }
+    spdlog::info("Core SLAM modules initialization complete.");
+}
+
+void GlimROS::shutdown_core_slam_modules() {
+  spdlog::info("Shutting down core SLAM modules...");
+
+  if (odometry_estimation) {
+    odometry_estimation->join(); // Ensure threads are stopped before reset
+    odometry_estimation.reset();
+    spdlog::debug("Odometry estimation module reset.");
+  }
+  if (sub_mapping) {
+    sub_mapping->join(); // Ensure threads are stopped before reset
+    sub_mapping.reset();
+    spdlog::debug("Sub mapping module reset.");
+  }
+  if (global_mapping) {
+    global_mapping->join(); // Ensure threads are stopped before reset
+    global_mapping.reset();
+    spdlog::debug("Global mapping module reset.");
+  }
+
+  spdlog::info("Core SLAM modules shutdown complete.");
 }
 
 const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension_subscriptions() {
@@ -294,15 +348,77 @@ bool GlimROS::needs_wait() {
 }
 
 void GlimROS::timer_callback() {
+  // Check for map load request
+  std::string path_to_load;
+  bool load_map = false;
+  {
+    std::lock_guard<std::mutex> lock(map_load_mutex_);
+    if (map_load_requested_) {
+      load_map = true;
+      path_to_load = requested_map_path_;
+      map_load_requested_ = false;
+      requested_map_path_.clear();
+    }
+  }
+
+  if (load_map) {
+    spdlog::info("Map load request detected in timer_callback for path: {}", path_to_load);
+
+    // 1. Shutdown existing SLAM modules
+    shutdown_core_slam_modules();
+
+    // 2. Re-initialize SLAM pipeline
+    initialize_core_slam_modules();
+
+    // 3. Load map into GlobalMapping
+    if (global_mapping) { // This checks if AsyncGlobalMapping unique_ptr is valid
+      // Check if global_mapping was actually initialized (e.g. not disabled by config)
+      spdlog::info("Loading map into GlobalMapping module from path: {}", path_to_load);
+      // Previous attempt: if (global_mapping->get_global_mapping()->load(path_to_load))
+      // We need to replace the call above with the dynamic_cast logic.
+
+      std::shared_ptr<glim::GlobalMappingBase> base_mapping_ptr = global_mapping->get_global_mapping();
+      if (base_mapping_ptr) {
+        std::shared_ptr<glim::GlobalMapping> derived_mapping_ptr = std::dynamic_pointer_cast<glim::GlobalMapping>(base_mapping_ptr);
+        if (derived_mapping_ptr) {
+          if (derived_mapping_ptr->load(path_to_load)) {
+            spdlog::info("Map successfully loaded into GlobalMapping.");
+            // TODO: Add logic for initial pose application here if it were part of this step
+          } else {
+            spdlog::error("Failed to load map using GlobalMapping::load from path: {}", path_to_load);
+          }
+        } else {
+          spdlog::error("Failed to dynamically cast GlobalMappingBase to GlobalMapping. Cannot load map. Type mismatch or RTTI issue?");
+        }
+      } else {
+        spdlog::warn("AsyncGlobalMapping returned a null GlobalMappingBase pointer. Cannot load map.");
+      }
+    } else {
+      spdlog::warn("GlobalMapping module (AsyncGlobalMapping wrapper) is not available/initialized. Cannot load map.");
+    }
+    spdlog::info("Map load process completed in timer_callback.");
+  }
+
+  // Existing timer_callback logic starts here
   for (const auto& ext_module : extension_modules) {
     if (!ext_module->ok()) {
       rclcpp::shutdown();
+      return; // Return early if shutting down
     }
   }
 
   std::vector<glim::EstimationFrame::ConstPtr> estimation_frames;
   std::vector<glim::EstimationFrame::ConstPtr> marginalized_frames;
-  odometry_estimation->get_results(estimation_frames, marginalized_frames);
+  // Check if odometry_estimation is valid before calling get_results, as it might have been reset
+  if(odometry_estimation) {
+    odometry_estimation->get_results(estimation_frames, marginalized_frames);
+  } else {
+    spdlog::warn("Odometry estimation module not available in timer_callback. Skipping odometry processing.");
+    // If odometry is not available (e.g. after a failed map load and reinit),
+    // we might not want to proceed with the rest of the callback logic that depends on its output.
+    // However, the original code doesn't explicitly stop here, so we'll maintain that behavior.
+  }
+
 
   if (sub_mapping) {
     for (const auto& frame : marginalized_frames) {

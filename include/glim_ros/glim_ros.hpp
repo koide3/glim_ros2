@@ -3,6 +3,8 @@
 #include <any>
 #include <deque>
 #include <memory>
+#include <atomic>
+#include <mutex>
 #include <rclcpp/rclcpp.hpp>
 
 #include <sensor_msgs/msg/imu.hpp>
@@ -38,10 +40,16 @@ public:
 
   void wait(bool auto_quit = false);
   void save(const std::string& path);
+  void request_map_load_from_gui(const std::string& map_path);
 
   const std::vector<std::shared_ptr<GenericTopicSubscription>>& extension_subscriptions();
 
 private:
+  // Members for map loading
+  std::atomic<bool> map_load_requested_{false};
+  std::string requested_map_path_;
+  std::mutex map_load_mutex_;
+
   std::unique_ptr<glim::TimeKeeper> time_keeper;
   std::unique_ptr<glim::CloudPreprocessor> preprocessor;
 
@@ -60,6 +68,9 @@ private:
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
   std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
+
+  void initialize_core_slam_modules();
+  void shutdown_core_slam_modules();
 
   // ROS-related
   rclcpp::TimerBase::SharedPtr timer;
