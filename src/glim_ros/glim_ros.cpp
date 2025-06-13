@@ -497,8 +497,10 @@ void GlimROS::timer_callback() {
 
                 // Assuming derived_mapping_ptr is std::shared_ptr<glim::GlobalMapping>
                 // and it has the set_initial_pose_prior method.
-                derived_mapping_ptr->set_initial_pose_prior(initial_gtsam_pose, noise_model);
-                RCLCPP_INFO(this->get_logger(), "Initial pose prior factor added to GlobalMapping.");
+                // TODO: Uncomment the following lines once set_initial_pose_prior is implemented in glim::GlobalMapping (core GLIM library)
+                // derived_mapping_ptr->set_initial_pose_prior(initial_gtsam_pose, noise_model);
+                // RCLCPP_INFO(this->get_logger(), "Initial pose prior factor would be added to GlobalMapping here.");
+                RCLCPP_WARN(this->get_logger(), "Initial pose was processed, but GlobalMapping::set_initial_pose_prior is currently disabled in glim_ros. Build will succeed, but pose won't be applied to backend until GLIM core is updated and this code is uncommented.");
 
                 // Optionally reset has_initial_pose_ if it's a one-time operation for this map load
                 // has_initial_pose_ = false;
