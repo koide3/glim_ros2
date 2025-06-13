@@ -46,6 +46,8 @@ For convenience, especially when starting localization with a pre-built map and 
 ```bash
 ros2 launch glim_ros glim_localize.launch.py \
     map_path:=/path/to/your/glim_map_directory \
+    imu_topic:=/your_imu_topic \
+    points_topic:=/your_lidar_topic \
     initial_pose_x:=1.5 \
     initial_pose_y:=-0.5 \
     initial_pose_z:=0.0 \
@@ -65,5 +67,7 @@ ros2 launch glim_ros glim_localize.launch.py \
 *   `initial_pose_qy` (double, default: "0.0"): Y component of the initial robot orientation quaternion.
 *   `initial_pose_qz` (double, default: "0.0"): Z component of the initial robot orientation quaternion.
 *   `initial_pose_qw` (double, default: "1.0"): W component of the initial robot orientation quaternion.
+*   `imu_topic` (string, default: "/imu/data"): The topic name for IMU messages.
+*   `points_topic` (string, default: "/lidar/points"): The topic name for LiDAR point cloud messages.
 
 This launch file will configure the `glim_ros` node to load the specified map and apply the initial pose upon startup. You can still use RViz to send a new initial pose via the `/initialpose` topic if needed.

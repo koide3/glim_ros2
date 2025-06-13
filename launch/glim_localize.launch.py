@@ -23,8 +23,19 @@ def generate_launch_description():
     initial_pose_qz_arg = DeclareLaunchArgument('initial_pose_qz', default_value='0.0', description='Initial pose Z orientation (quaternion)')
     initial_pose_qw_arg = DeclareLaunchArgument('initial_pose_qw', default_value='1.0', description='Initial pose W orientation (quaternion)')
 
-    # Config file path - assuming it's often standard but could be made an argument
-    config_file_path = os.path.join(glim_ros_share_dir, 'config', 'config_ros.json') # Default config, make this an arg if necessary
+    imu_topic_arg = DeclareLaunchArgument(
+        'imu_topic',
+        default_value='/imu/data',  # Or a more generic default like '' if you want to force user input
+        description='IMU topic name.'
+    )
+    points_topic_arg = DeclareLaunchArgument(
+        'points_topic',
+        default_value='/lidar/points',  # Or a more generic default
+        description='LiDAR points topic name.'
+    )
+
+    # Config directory path
+    config_dir_path = os.path.join(glim_ros_share_dir, 'config') # Path to the config directory
 
     # Glim ROS node
     glim_ros_node = Node(
@@ -33,7 +44,7 @@ def generate_launch_description():
         name='glim_ros',
         output='screen',
         parameters=[
-            {'config_path': config_file_path}, # Make sure your node uses this to find config_ros.json etc.
+            {'config_path': config_dir_path}, # Corrected path
             # Parameters for initial pose
             {'initial_pose.position.x': LaunchConfiguration('initial_pose_x')},
             {'initial_pose.position.y': LaunchConfiguration('initial_pose_y')},
@@ -43,7 +54,10 @@ def generate_launch_description():
             {'initial_pose.orientation.z': LaunchConfiguration('initial_pose_qz')},
             {'initial_pose.orientation.w': LaunchConfiguration('initial_pose_qw')},
             # New parameter for map loading on start
-            {'map_load_path_on_start': LaunchConfiguration('map_path')}
+            {'map_load_path_on_start': LaunchConfiguration('map_path')},
+            # Parameters for topics
+            {'imu_topic': LaunchConfiguration('imu_topic')},
+            {'points_topic': LaunchConfiguration('points_topic')}
         ],
         # Add remappings if necessary, e.g., for IMU, Lidar topics
         # remappings=[
@@ -61,5 +75,7 @@ def generate_launch_description():
         initial_pose_qy_arg,
         initial_pose_qz_arg,
         initial_pose_qw_arg,
+        imu_topic_arg,         # Added
+        points_topic_arg,      # Added
         glim_ros_node
     ])
