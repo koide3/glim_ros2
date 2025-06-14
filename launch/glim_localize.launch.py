@@ -7,12 +7,12 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     # Get the share directory
-    glim_ros_share_dir = get_package_share_directory('glim_ros')
+    glim_ros_share_dir = get_package_share_directory('glim')
 
     # Declare launch arguments
     map_path_arg = DeclareLaunchArgument(
         'map_path',
-        default_value='',
+        default_value='/home/abudori/Data/glim_sample',
         description='Path to the GLIM map directory to load on startup.'
     )
     initial_pose_x_arg = DeclareLaunchArgument('initial_pose_x', default_value='0.0', description='Initial pose X position')
