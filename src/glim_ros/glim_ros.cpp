@@ -16,9 +16,17 @@
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <mutex> // For std::lock_guard in initial_pose_callback
+
+// GTSAM related includes
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/linear/NoiseModel.h>
+// Note: <gtsam/base/numericalDerivative.h> and <gtsam/base/serialization.h> are not strictly needed for Diagonal noise model.
 
 #include <gtsam_points/optimizers/linearization_hook.hpp>
 #include <gtsam_points/cuda/nonlinear_factor_set_gpu_create.hpp>
@@ -78,6 +86,55 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   logger->info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
+
+  // Declare and retrieve initial pose parameters
+  this->declare_parameter<double>("initial_pose.position.x", 0.0);
+  this->declare_parameter<double>("initial_pose.position.y", 0.0);
+  this->declare_parameter<double>("initial_pose.position.z", 0.0);
+  this->declare_parameter<double>("initial_pose.orientation.x", 0.0);
+  this->declare_parameter<double>("initial_pose.orientation.y", 0.0);
+  this->declare_parameter<double>("initial_pose.orientation.z", 0.0);
+  this->declare_parameter<double>("initial_pose.orientation.w", 1.0);
+
+  this->get_parameter("initial_pose.position.x", initial_pose_position_x_);
+  this->get_parameter("initial_pose.position.y", initial_pose_position_y_);
+  this->get_parameter("initial_pose.position.z", initial_pose_position_z_);
+  this->get_parameter("initial_pose.orientation.x", initial_pose_orientation_x_);
+  this->get_parameter("initial_pose.orientation.y", initial_pose_orientation_y_);
+  this->get_parameter("initial_pose.orientation.z", initial_pose_orientation_z_);
+  this->get_parameter("initial_pose.orientation.w", initial_pose_orientation_w_);
+
+  if (initial_pose_position_x_ != 0.0 ||
+      initial_pose_position_y_ != 0.0 ||
+      initial_pose_position_z_ != 0.0 ||
+      initial_pose_orientation_x_ != 0.0 ||
+      initial_pose_orientation_y_ != 0.0 ||
+      initial_pose_orientation_z_ != 0.0 ||
+      initial_pose_orientation_w_ != 1.0) {
+    has_initial_pose_ = true;
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Initial pose loaded from parameters: P[%.3f, %.3f, %.3f], O[%.3f, %.3f, %.3f, %.3f]",
+      initial_pose_position_x_,
+      initial_pose_position_y_,
+      initial_pose_position_z_,
+      initial_pose_orientation_x_,
+      initial_pose_orientation_y_,
+      initial_pose_orientation_z_,
+      initial_pose_orientation_w_);
+  } else {
+    RCLCPP_INFO(this->get_logger(), "No initial pose provided via parameters, or it's the default pose [0,0,0], [0,0,0,1].");
+  }
+
+  // Declare and retrieve map_load_path_on_start parameter
+  this->declare_parameter<std::string>("map_load_path_on_start", "");
+  this->get_parameter("map_load_path_on_start", map_load_path_on_start_);
+
+  if (!map_load_path_on_start_.empty()) {
+    RCLCPP_INFO(this->get_logger(), "Parameter 'map_load_path_on_start' set to: %s", map_load_path_on_start_.c_str());
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Parameter 'map_load_path_on_start' is not set. Map will not be loaded on startup by this parameter.");
+  }
 
   keep_raw_points = config_ros.param<bool>("glim_ros", "keep_raw_points", false);
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
@@ -152,6 +209,12 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   image_sub = image_transport::create_subscription(this, image_topic, std::bind(&GlimROS::image_callback, this, _1), "raw", qos.get_rmw_qos_profile());
 #endif
 
+  initial_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+    "/initialpose",
+    rclcpp::SystemDefaultsQoS(),
+    std::bind(&GlimROS::initial_pose_callback, this, _1));
+  RCLCPP_INFO(this->get_logger(), "Subscribed to /initialpose topic for initial pose updates.");
+
   for (const auto& sub : this->extension_subscriptions()) {
     spdlog::debug("subscribe to {}", sub->topic);
     sub->create_subscriber(*this);
@@ -159,6 +222,14 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
 
   // Start timer
   timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
+
+  // Request map loading on startup if the path is provided
+  if (!map_load_path_on_start_.empty()) {
+    RCLCPP_INFO(this->get_logger(), "Requesting map load on startup for path: %s", map_load_path_on_start_.c_str());
+    std::lock_guard<std::mutex> lock(map_load_mutex_);
+    requested_map_path_ = map_load_path_on_start_;
+    map_load_requested_ = true;
+  }
 
   spdlog::debug("initialized");
 }
@@ -337,6 +408,26 @@ size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstShared
   return workload;
 }
 
+void GlimROS::initial_pose_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
+  std::lock_guard<std::mutex> lock(initial_pose_mutex_); // Protect access to shared pose variables
+
+  initial_pose_position_x_ = msg->pose.pose.position.x;
+  initial_pose_position_y_ = msg->pose.pose.position.y;
+  initial_pose_position_z_ = msg->pose.pose.position.z;
+
+  initial_pose_orientation_x_ = msg->pose.pose.orientation.x;
+  initial_pose_orientation_y_ = msg->pose.pose.orientation.y;
+  initial_pose_orientation_z_ = msg->pose.pose.orientation.z;
+  initial_pose_orientation_w_ = msg->pose.pose.orientation.w;
+
+  has_initial_pose_ = true;
+
+  RCLCPP_INFO(this->get_logger(),
+                "Received initial pose from /initialpose topic: P[%.3f, %.3f, %.3f], O[%.3f, %.3f, %.3f, %.3f]",
+                initial_pose_position_x_, initial_pose_position_y_, initial_pose_position_z_,
+                initial_pose_orientation_x_, initial_pose_orientation_y_, initial_pose_orientation_z_, initial_pose_orientation_w_);
+}
+
 bool GlimROS::needs_wait() {
   for (const auto& ext_module : extension_modules) {
     if (ext_module->needs_wait()) {
@@ -373,30 +464,62 @@ void GlimROS::timer_callback() {
     // 3. Load map into GlobalMapping
     if (global_mapping) { // This checks if AsyncGlobalMapping unique_ptr is valid
       // Check if global_mapping was actually initialized (e.g. not disabled by config)
-      spdlog::info("Loading map into GlobalMapping module from path: {}", path_to_load);
-      // Previous attempt: if (global_mapping->get_global_mapping()->load(path_to_load))
-      // We need to replace the call above with the dynamic_cast logic.
+      RCLCPP_INFO(this->get_logger(), "Loading map into GlobalMapping module from path: %s", path_to_load.c_str());
 
       std::shared_ptr<glim::GlobalMappingBase> base_mapping_ptr = global_mapping->get_global_mapping();
       if (base_mapping_ptr) {
         std::shared_ptr<glim::GlobalMapping> derived_mapping_ptr = std::dynamic_pointer_cast<glim::GlobalMapping>(base_mapping_ptr);
         if (derived_mapping_ptr) {
           if (derived_mapping_ptr->load(path_to_load)) {
-            spdlog::info("Map successfully loaded into GlobalMapping.");
-            // TODO: Add logic for initial pose application here if it were part of this step
+            RCLCPP_INFO(this->get_logger(), "Map successfully loaded into GlobalMapping.");
+
+            // Apply initial pose if available
+            std::lock_guard<std::mutex> lock(initial_pose_mutex_);
+            if (has_initial_pose_) {
+                RCLCPP_INFO(this->get_logger(), "Applying initial pose to GlobalMapping.");
+                gtsam::Rot3 rotation = gtsam::Rot3::Quaternion(
+                    initial_pose_orientation_w_,
+                    initial_pose_orientation_x_,
+                    initial_pose_orientation_y_,
+                    initial_pose_orientation_z_
+                );
+                gtsam::Point3 position(
+                    initial_pose_position_x_,
+                    initial_pose_position_y_,
+                    initial_pose_position_z_
+                );
+                gtsam::Pose3 initial_gtsam_pose(rotation, position);
+
+                gtsam::Vector6 sigmas;
+                sigmas << 0.1, 0.1, 0.1, // roll, pitch, yaw stddev in radians (adjust as needed)
+                          0.2, 0.2, 0.2; // x, y, z stddev in meters (adjust as needed)
+                gtsam::SharedNoiseModel noise_model = gtsam::noiseModel::Diagonal::Sigmas(sigmas);
+
+                // Assuming derived_mapping_ptr is std::shared_ptr<glim::GlobalMapping>
+                // and it has the set_initial_pose_prior method.
+                // TODO: Uncomment the following lines once set_initial_pose_prior is implemented in glim::GlobalMapping (core GLIM library)
+                // derived_mapping_ptr->set_initial_pose_prior(initial_gtsam_pose, noise_model);
+                // RCLCPP_INFO(this->get_logger(), "Initial pose prior factor would be added to GlobalMapping here.");
+                RCLCPP_WARN(this->get_logger(), "Initial pose was processed, but GlobalMapping::set_initial_pose_prior is currently disabled in glim_ros. Build will succeed, but pose won't be applied to backend until GLIM core is updated and this code is uncommented.");
+
+                // Optionally reset has_initial_pose_ if it's a one-time operation for this map load
+                // has_initial_pose_ = false;
+            } else {
+                RCLCPP_INFO(this->get_logger(), "No initial pose to apply after map load.");
+            }
           } else {
-            spdlog::error("Failed to load map using GlobalMapping::load from path: {}", path_to_load);
+            RCLCPP_ERROR(this->get_logger(), "Failed to load map using GlobalMapping::load from path: %s", path_to_load.c_str());
           }
         } else {
-          spdlog::error("Failed to dynamically cast GlobalMappingBase to GlobalMapping. Cannot load map. Type mismatch or RTTI issue?");
+          RCLCPP_ERROR(this->get_logger(), "Failed to dynamically cast GlobalMappingBase to GlobalMapping. Cannot load map. Type mismatch or RTTI issue?");
         }
       } else {
-        spdlog::warn("AsyncGlobalMapping returned a null GlobalMappingBase pointer. Cannot load map.");
+        RCLCPP_WARN(this->get_logger(), "AsyncGlobalMapping returned a null GlobalMappingBase pointer. Cannot load map.");
       }
     } else {
-      spdlog::warn("GlobalMapping module (AsyncGlobalMapping wrapper) is not available/initialized. Cannot load map.");
+      RCLCPP_WARN(this->get_logger(), "GlobalMapping module (AsyncGlobalMapping wrapper) is not available/initialized. Cannot load map.");
     }
-    spdlog::info("Map load process completed in timer_callback.");
+    RCLCPP_INFO(this->get_logger(), "Map load process completed in timer_callback.");
   }
 
   // Existing timer_callback logic starts here
