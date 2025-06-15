@@ -19,9 +19,9 @@ jobs:
     strategy:
       matrix:
         DISTRO: [
-          { "ubuntu": "noble", "ros": "jazzy", "suffix": "gcc", "label": "jazzy" },
-          { "ubuntu": "jammy", "ros": "humble", "suffix": "gcc", "label": "humble" },
-          { "ubuntu": "jammy_cuda12.2", "ros": "humble", "suffix": "gcc.cuda", "label": "humble_cuda12.2" },
+          { "ubuntu": "noble_gtsam4.3a0", "ros": "jazzy", "suffix": "gcc", "label": "jazzy" },
+          { "ubuntu": "jammy_gtsam4.3a0", "ros": "humble", "suffix": "gcc", "label": "humble" },
+          { "ubuntu": "jammy_cuda12.2_gtsam4.3a0", "ros": "humble", "suffix": "gcc.cuda", "label": "humble_cuda12.2" },
         ]
 
     steps:
