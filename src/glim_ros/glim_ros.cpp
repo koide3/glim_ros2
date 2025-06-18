@@ -50,17 +50,28 @@
 
 namespace glim {
 
-// Helper function to format rclcpp::Time
+// Helper function to format rclcpp::Time to HH:MM:SS.mmm
 std::string format_ros_time(const rclcpp::Time& stamp) {
-    std::chrono::seconds secs(stamp.seconds());
-    std::chrono::nanoseconds nsecs(stamp.nanoseconds());
+    // Convert seconds and nanoseconds to a std::chrono::time_point
+    // std::chrono::seconds s(stamp.sec); // Not directly used in this revised approach
+    // std::chrono::nanoseconds ns(stamp.nanosec); // Not directly used in this revised approach
 
-    auto total_nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(secs + nsecs);
-    auto tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>(total_nsecs);
-    auto tt = std::chrono::system_clock::to_time_t(tp);
+    // Create a time_point in system_clock. Note: This interprets stamp.sec as Unix epoch seconds.
+    // std::chrono::system_clock::time_point tp = std::chrono::system_clock::from_time_t(s.count());
+    // Add the nanoseconds. Note: time_since_epoch() on time_point from time_t(0) might not be zero on all systems
+    // if time_t is not strictly Unix time. However, for formatting HH:MM:SS, we mostly care about time of day.
+    // A more robust way for full date/time might involve constructing from epoch + duration.
+    // For HH:MM:SS.mmm, focusing on the time part:
+
+    std::time_t time_t_val = stamp.sec;
+    // Use std::gmtime or std::localtime. Given typical ROS usage, logs are often in UTC or local machine time.
+    // Let's use std::localtime to match typical user expectation for local time display.
+    std::tm tm_val = *std::localtime(&time_t_val);
 
     std::ostringstream oss;
-    oss << std::put_time(std::gmtime(&tt), "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0') << std::setw(9) << nsecs.count();
+    oss << std::put_time(&tm_val, "%H:%M:%S");
+    oss << "." << std::setfill('0') << std::setw(3) << (stamp.nanosec / 1000000); // Milliseconds
+
     return oss.str();
 }
 
