@@ -50,8 +50,8 @@
 
 namespace glim {
 
-// Helper function to format rclcpp::Time to HH:MM:SS.mmm
-std::string format_ros_time(const rclcpp::Time& stamp) {
+// Helper function to format builtin_interfaces::msg::Time to HH:MM:SS.mmm
+std::string format_ros_time(const builtin_interfaces::msg::Time& stamp) {
     // Convert seconds and nanoseconds to a std::chrono::time_point
     // std::chrono::seconds s(stamp.sec); // Not directly used in this revised approach
     // std::chrono::nanoseconds ns(stamp.nanosec); // Not directly used in this revised approach
