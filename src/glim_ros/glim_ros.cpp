@@ -6,6 +6,9 @@
 #include <thread>
 #include <iostream>
 #include <functional>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 #include <boost/format.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -46,6 +49,20 @@
 #include <glim_ros/ros_qos.hpp>
 
 namespace glim {
+
+// Helper function to format rclcpp::Time
+std::string format_ros_time(const rclcpp::Time& stamp) {
+    std::chrono::seconds secs(stamp.seconds());
+    std::chrono::nanoseconds nsecs(stamp.nanoseconds());
+
+    auto total_nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(secs + nsecs);
+    auto tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>(total_nsecs);
+    auto tt = std::chrono::system_clock::to_time_t(tp);
+
+    std::ostringstream oss;
+    oss << std::put_time(std::gmtime(&tt), "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0') << std::setw(9) << nsecs.count();
+    return oss.str();
+}
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
   // Setup logger
@@ -344,7 +361,7 @@ const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension
 }
 
 void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-  spdlog::trace("IMU: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  spdlog::trace("IMU: {}", format_ros_time(msg->header.stamp));
 
   const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
@@ -366,7 +383,7 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
 
 #ifdef BUILD_WITH_CV_BRIDGE
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
-  spdlog::trace("image: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  spdlog::trace("image: {}", format_ros_time(msg->header.stamp));
 
   auto cv_image = cv_bridge::toCvCopy(msg, "bgr8");
 
@@ -382,7 +399,7 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
 #endif
 
 size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
-  spdlog::trace("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  spdlog::trace("points: {}", format_ros_time(msg->header.stamp));
 
   auto raw_points = glim::extract_raw_points(*msg, intensity_field, ring_field);
   if (raw_points == nullptr) {
@@ -498,9 +515,8 @@ void GlimROS::timer_callback() {
                 // Assuming derived_mapping_ptr is std::shared_ptr<glim::GlobalMapping>
                 // and it has the set_initial_pose_prior method.
                 // TODO: Uncomment the following lines once set_initial_pose_prior is implemented in glim::GlobalMapping (core GLIM library)
-                // derived_mapping_ptr->set_initial_pose_prior(initial_gtsam_pose, noise_model);
-                // RCLCPP_INFO(this->get_logger(), "Initial pose prior factor would be added to GlobalMapping here.");
-                RCLCPP_WARN(this->get_logger(), "Initial pose was processed, but GlobalMapping::set_initial_pose_prior is currently disabled in glim_ros. Build will succeed, but pose won't be applied to backend until GLIM core is updated and this code is uncommented.");
+                derived_mapping_ptr->set_initial_pose_prior(initial_gtsam_pose, noise_model);
+                RCLCPP_INFO(this->get_logger(), "Initial pose prior factor added to GlobalMapping.");
 
                 // Optionally reset has_initial_pose_ if it's a one-time operation for this map load
                 // has_initial_pose_ = false;
