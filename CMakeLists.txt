@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(glim_ros VERSION 1.0.7 LANGUAGES CXX)
+project(glim_ros VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -10,12 +10,22 @@ endif()
 
 option(BUILD_WITH_CUDA "Build with GPU support" ON)
 option(BUILD_WITH_VIEWER "Build with visualizer" ON)
+option(BUILD_WITH_CV_BRIDGE "Build with cv_bridge which enables support for processing of camera images" ON)
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
 find_package(glim REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options)
+
+if(DEFINED GLIM_USE_OPENCV AND NOT GLIM_USE_OPENCV AND BUILD_WITH_CV_BRIDGE)
+  message(WARNING "BUILD_WITH_CV_BRIDGE is disabled because glim is not built with OpenCV.")
+  set(BUILD_WITH_CV_BRIDGE OFF CACHE BOOL "glim is not built with OpenCV" FORCE)
+endif()
+
+if(BUILD_WITH_CV_BRIDGE)
+  add_definitions(-DBUILD_WITH_CV_BRIDGE)
+endif()
 
 if(BUILD_WITH_CUDA)
   add_definitions(-DBUILD_GTSAM_POINTS_GPU)
@@ -31,6 +41,7 @@ endif()
 ### glim_ros ###
 ament_auto_add_library(glim_ros SHARED
   src/glim_ros/glim_ros.cpp
+  src/glim_ros/ros_qos.cpp
 )
 target_include_directories(glim_ros PUBLIC
   include

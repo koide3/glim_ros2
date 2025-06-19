@@ -34,6 +34,8 @@ RUN apt-get install --no-install-recommends -y \
 
 RUN rosdep init && rosdep update
 
+RUN apt-get install --no-install-recommends -y libomp-dev
+
 COPY glim /root/glim
 
 WORKDIR /root/glim

@@ -5,10 +5,12 @@
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 
-#include <image_transport/image_transport.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#ifdef BUILD_WITH_CV_BRIDGE
+#include <image_transport/image_transport.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#endif
 
 namespace glim {
 class TimeKeeper;
@@ -29,7 +31,9 @@ public:
   void timer_callback();
 
   void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
+#ifdef BUILD_WITH_CV_BRIDGE
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
+#endif
   size_t points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
   void wait(bool auto_quit = false);
@@ -51,6 +55,8 @@ private:
   double acc_scale;
   bool dump_on_unload;
 
+  std::string intensity_field, ring_field;
+
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
   std::vector<std::shared_ptr<GenericTopicSubscription>> extension_subs;
@@ -59,7 +65,9 @@ private:
   rclcpp::TimerBase::SharedPtr timer;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr points_sub;
+#ifdef BUILD_WITH_CV_BRIDGE
   image_transport::Subscriber image_sub;
+#endif
 };
 
 }  // namespace glim
