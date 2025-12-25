@@ -40,32 +40,7 @@
 namespace glim {
 
 GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options) {
-  // Setup logger
-  auto logger = spdlog::stdout_color_mt("glim");
-  logger->sinks().push_back(get_ringbuffer_sink());
-  spdlog::set_default_logger(logger);
-
-  bool debug = false;
-  this->declare_parameter<bool>("debug", false);
-  this->get_parameter<bool>("debug", debug);
-
-  if (debug) {
-    spdlog::info("enable debug printing");
-    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/tmp/glim_log.log", true);
-    logger->sinks().push_back(file_sink);
-    logger->set_level(spdlog::level::trace);
-
-    print_system_info(logger);
-  }
-
-  dump_on_unload = false;
-  this->declare_parameter<bool>("dump_on_unload", false);
-  this->get_parameter<bool>("dump_on_unload", dump_on_unload);
-
-  if (dump_on_unload) {
-    spdlog::info("dump_on_unload={}", dump_on_unload);
-  }
-
+  // Setup config path
   std::string config_path;
   this->declare_parameter<std::string>("config_path", "config");
   this->get_parameter<std::string>("config_path", config_path);
@@ -75,8 +50,35 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     config_path = ament_index_cpp::get_package_share_directory("glim") + "/" + config_path;
   }
 
-  logger->info("config_path: {}", config_path);
   glim::GlobalConfig::instance(config_path);
+
+  // Setup logger
+  bool debug = false;
+  this->declare_parameter<bool>("debug", false);
+  this->get_parameter<bool>("debug", debug);
+  if (debug) {
+    spdlog::info("enable debug printing");
+    spdlog::set_level(spdlog::level::trace);
+  }
+
+  auto logger = glim::create_module_logger("glim");
+  spdlog::set_default_logger(logger);
+
+  if (debug) {
+    print_system_info(logger);
+  }
+
+  logger->info("config_path: {}", config_path);
+
+  // Global parameters
+  dump_on_unload = false;
+  this->declare_parameter<bool>("dump_on_unload", false);
+  this->get_parameter<bool>("dump_on_unload", dump_on_unload);
+
+  if (dump_on_unload) {
+    spdlog::info("dump_on_unload={}", dump_on_unload);
+  }
+
   glim::Config config_ros(glim::GlobalConfig::get_config_path("config_ros"));
 
   keep_raw_points = config_ros.param<bool>("glim_ros", "keep_raw_points", false);
