@@ -266,7 +266,10 @@ size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstShared
   }
 
   raw_points->stamp += points_time_offset;
-  time_keeper->process(raw_points);
+  if (!time_keeper->process(raw_points)) {
+    spdlog::warn("skip an invalid point cloud (stamp={})", raw_points->stamp);
+    return 0;
+  }
   auto preprocessed = preprocessor->preprocess(raw_points);
 
   if (keep_raw_points) {
