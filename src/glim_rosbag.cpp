@@ -134,6 +134,9 @@ int main(int argc, char** argv) {
     rosbag2_storage::StorageOptions options;
     options.uri = bag_filename;
 
+    bool is_mcap = bag_filename.size() > 5 && bag_filename.rfind(".mcap") == (bag_filename.size() - 5);
+    options.storage_id = is_mcap ? "mcap" : "sqlite3";
+
     rosbag2_cpp::ConverterOptions converter_options;
 
     // rosbag2_cpp::Reader reader;
