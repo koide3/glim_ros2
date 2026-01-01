@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
 
   // Playback speed settings
   const double playback_speed = config_ros.param<double>("glim_ros", "playback_speed", 100.0);
-  std::chrono::high_resolution_clock::time_point real_t0;
+  std::chrono::system_clock::time_point real_t0;
   rcutils_time_point_value_t bag_t0 = 0;
   SpeedCounter speed_counter;
 
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
       const rclcpp::SerializedMessage serialized_msg(*msg->serialized_data);
 
       if (real_t0.time_since_epoch().count() == 0) {
-        real_t0 = std::chrono::high_resolution_clock::now();
+        real_t0 = std::chrono::system_clock::now();
       }
 
       const auto msg_time = get_msg_recv_timestamp(*msg);
@@ -190,7 +190,7 @@ int main(int argc, char** argv) {
 
         start_offset = 0.0;
         bag_t0 = 0;
-        real_t0 = std::chrono::high_resolution_clock::from_time_t(0);
+        real_t0 = std::chrono::system_clock::from_time_t(0);
         continue;
       }
 
@@ -205,8 +205,8 @@ int main(int argc, char** argv) {
       }
 
       const auto bag_elapsed = std::chrono::nanoseconds(msg_time - bag_t0);
-      while (playback_speed > 0.0 && (std::chrono::high_resolution_clock::now() - real_t0) * playback_speed < bag_elapsed) {
-        const double real_elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - real_t0).count() / 1e9;
+      while (playback_speed > 0.0 && (std::chrono::system_clock::now() - real_t0) * playback_speed < bag_elapsed) {
+        const double real_elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now() - real_t0).count() / 1e9;
         spdlog::debug("throttling (real_elapsed={} bag_elapsed={} playback_speed={})", real_elapsed, bag_elapsed.count() / 1e9, playback_speed);
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
