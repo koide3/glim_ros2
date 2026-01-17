@@ -23,6 +23,7 @@ jobs:
           {"base_image": "ubuntu:jammy", "ros": "humble", "cuda": "OFF", "suffix": "llvm", "label": "humble" },
           {"base_image": "ubuntu:noble", "ros": "jazzy", "cuda": "OFF", "suffix": "gcc", "label": "jazzy" },
           {"base_image": "ubuntu:noble", "ros": "jazzy", "cuda": "OFF", "suffix": "llvm", "label": "jazzy" },
+          {"base_image": "nvidia/cuda:12.5.1-devel-ubuntu24.04", "ros": "jazzy", "cuda": "ON", "suffix": "gcc", "label": "jazzy_cuda12.5" },
           {"base_image": "nvidia/cuda:13.1.0-devel-ubuntu24.04", "ros": "jazzy", "cuda": "ON", "suffix": "gcc", "label": "jazzy_cuda13.1" }
         ]
 
