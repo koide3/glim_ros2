@@ -23,8 +23,8 @@ RUN apt-get install --no-install-recommends -y \
 
 COPY local_ppa /ppa
 
-RUN /ppa/setup_ppa.sh
-RUN sed -i 's#https://koide3.github.io/ppa#file:///ppa#g' /etc/apt/sources.list.d/koide3_ppa.list
+RUN /ppa/setup_local_ppa.sh
+
 RUN apt-get update
 
 ARG PACKAGE_SUFFIX=-cuda12.5
