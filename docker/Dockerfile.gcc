@@ -1,24 +1,57 @@
-ARG BASE_IMAGE=koide3/gtsam_points:jammy_gtsam4.3a0
+ARG BASE_IMAGE=nvidia/cuda:13.1.0-devel-ubuntu24.04
 FROM $BASE_IMAGE
 
-ARG ROS_DISTRO=humble
+ARG ROS_DISTRO=jazzy
+ENV ROS_DISTRO=${ROS_DISTRO}
+ARG WITH_CUDA=OFF
+ENV WITH_CUDA=${WITH_CUDA}
 
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+ENV NVIDIA_VISIBLE_DEVICES ${NVIDIA_VISIBLE_DEVICES:-all}
+ENV NVIDIA_DRIVER_CAPABILITIES ${NVIDIA_DRIVER_CAPABILITIES:+$NVIDIA_DRIVER_CAPABILITIES,}graphics
+
+# install ROS
 RUN apt-get update \
-  && apt-get upgrade -y \
-  # install dependencies
   && apt-get install --no-install-recommends -y \
-    curl libfmt-dev libspdlog-dev libopencv-dev zenity \
-  # install ROS
+    curl ca-certificates gpg-agent libfmt-dev libspdlog-dev libopencv-dev zenity \
+  && update-ca-certificates \
   && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null \
   && apt-get update \
   && apt-get install --no-install-recommends -y \
     python3-colcon-common-extensions \
+    python3-rosdep \
     ros-${ROS_DISTRO}-ros-base ros-${ROS_DISTRO}-cv-bridge \
     ros-${ROS_DISTRO}-image-transport-plugins ros-${ROS_DISTRO}-tf2-ros \
+    libfmt-dev libspdlog-dev libopencv-dev \
+    software-properties-common ca-certificates \
+    git cmake build-essential wget unzip libboost-all-dev \
+    libmetis-dev libomp-dev \
+    libpng-dev libjpeg-dev libeigen3-dev libglm-dev libglfw3-dev \
   # clean
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+RUN add-apt-repository ppa:koide3/iridescence && \
+    add-apt-repository ppa:koide3/gtsam && \
+    apt-get update && \
+    apt-get install -y libiridescence-dev libgtsam-no-tbb-dev && \
+    # clean
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# build and install gtsam_points
+WORKDIR /root
+RUN git clone https://github.com/koide3/gtsam_points
+WORKDIR /root/gtsam_points/build
+RUN cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_WITH_CUDA=${WITH_CUDA}
+RUN make -j$(nproc)
+RUN make install
+
 
 RUN echo "#!/bin/bash" >> /ros_entrypoint.sh \
   && echo "set -e" >> /ros_entrypoint.sh \
@@ -31,7 +64,7 @@ COPY glim /root/ros2_ws/src/glim
 COPY glim_ros2 /root/ros2_ws/src/glim_ros2
 
 WORKDIR /root/ros2_ws
-RUN /bin/bash -c '. /opt/ros/${ROS_DISTRO}/setup.bash; colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_CUDA=OFF -DBUILD_WITH_VIEWER=ON'
+RUN /bin/bash -c '. /opt/ros/${ROS_DISTRO}/setup.bash; colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_CUDA=${WITH_CUDA} -DBUILD_WITH_VIEWER=ON'
 
 WORKDIR /root/ros2_ws/src/glim
 
