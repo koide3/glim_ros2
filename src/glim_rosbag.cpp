@@ -1,5 +1,6 @@
 #include <glob.h>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <boost/format.hpp>
@@ -9,6 +10,7 @@
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
 #include <rosbag2_compression/sequential_compression_reader.hpp>
 #include <rosbag2_storage/storage_filter.hpp>
+#include <rosbag2_storage/metadata_io.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <glim/util/config.hpp>
@@ -135,7 +137,27 @@ int main(int argc, char** argv) {
     options.uri = bag_filename;
 
     bool is_mcap = bag_filename.size() > 5 && bag_filename.rfind(".mcap") == (bag_filename.size() - 5);
-    options.storage_id = is_mcap ? "mcap" : "sqlite3";
+    if (is_mcap) {
+      options.storage_id = "mcap";
+    } else if (std::filesystem::is_directory(bag_filename)) {
+      try {
+        rosbag2_storage::MetadataIo metadata_io;
+        const auto metadata = metadata_io.read_metadata(bag_filename);
+        options.storage_id = metadata.storage_identifier;
+
+        if (options.storage_id.empty()) {
+          spdlog::warn("storage_identifier not found in metadata.yaml (uri={}), fallback to sqlite3", bag_filename);
+          options.storage_id = "sqlite3";
+        } else {
+          spdlog::info("detected storage_id={} from metadata.yaml", options.storage_id);
+        }
+      } catch (const std::exception& e) {
+        spdlog::warn("failed to read metadata.yaml (uri={}): {} (fallback to sqlite3)", bag_filename, e.what());
+        options.storage_id = "sqlite3";
+      }
+    } else {
+      options.storage_id = "sqlite3";
+    }
 
     rosbag2_cpp::ConverterOptions converter_options;
 
