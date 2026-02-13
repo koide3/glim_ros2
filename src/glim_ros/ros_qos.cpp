@@ -89,7 +89,7 @@ static bool get_qos(const Config& config_ros, const std::string& module_name, co
 
 rclcpp::QoS get_qos_settings(const Config& config_ros, const std::string& module_name, const std::string& param_name, const std::optional<rclcpp::QoS>& default_qos) {
   std::string profile_name;
-  rclcpp::QoS qos{0};
+  rclcpp::QoS qos{rclcpp::SystemDefaultsQoS()};
 
   if (!get_qos(config_ros, module_name, param_name, profile_name, qos) && default_qos.has_value()) {
     qos = default_qos.value();
