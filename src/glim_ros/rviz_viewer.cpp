@@ -271,6 +271,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     // Publish sensor pose at the end of the scan (without loop closure)
     if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
       logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
+      logger->warn("Possibly due to the lack of IMU data");
     }
 
     const Eigen::Isometry3d T_odom_imuend = T_odom_imu * T_imubegin_imuend;
@@ -294,7 +295,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
 
     odom_scan_end_pub->publish(odom);
 
-    logger->debug("published odom (stamp={})", new_frame->stamp);
+    logger->debug("published odom_scanend (scanend_stamp={})", imu_end_time);
   }
 
   auto& pose_pub = !corrected ? this->pose_pub : this->pose_corrected_pub;
@@ -320,6 +321,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     // Publish sensor pose at the end of the scan (with loop closure)
     if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
       logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
+      logger->warn("Possibly due to the lack of IMU data");
     }
 
     const Eigen::Isometry3d T_world_imuend = T_world_imu * T_imubegin_imuend;
@@ -337,7 +339,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     pose.pose.orientation.w = quat_world_imuend.w();
     pose_scan_end_pub->publish(pose);
 
-    logger->debug("published pose (stamp={})", new_frame->stamp);
+    logger->debug("published pose_scanend (scanend_stamp={})", imu_end_time);
   }
 
   auto& points_pub = !corrected ? this->points_pub : this->points_corrected_pub;
