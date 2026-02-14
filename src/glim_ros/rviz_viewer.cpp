@@ -312,7 +312,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     pose.pose.orientation.w = quat_world_imuend.w();
     pose_scan_end_pub->publish(pose);
 
-    logger->debug("published pose (stamp={})", new_frame->stamp);
+    logger->debug("published scan-end pose (imu_end_time={} frame_time={})", imu_end_time, new_frame->stamp);
   }
 
   auto& points_pub = !corrected ? this->points_pub : this->points_corrected_pub;
