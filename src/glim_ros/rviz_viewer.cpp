@@ -18,8 +18,8 @@ namespace glim {
 RvizViewer::RvizViewer() : logger(create_module_logger("rviz")) {
   const Config config(GlobalConfig::get_config_path("config_ros"));
 
-  imu_frame_id = config.param<std::string>("glim_ros", "imu_frame_id", "imu");
-  lidar_frame_id = config.param<std::string>("glim_ros", "lidar_frame_id", "lidar");
+  imu_frame_id = config.param<std::string>("glim_ros", "imu_frame_id", "");
+  lidar_frame_id = config.param<std::string>("glim_ros", "lidar_frame_id", "");
   base_frame_id = config.param<std::string>("glim_ros", "base_frame_id", "");
   if (base_frame_id.empty()) {
     base_frame_id = imu_frame_id;
@@ -105,6 +105,31 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
 
   const Eigen::Isometry3d T_lidar_imu = new_frame->T_lidar_imu;
   const Eigen::Quaterniond quat_lidar_imu(T_lidar_imu.linear());
+
+  if (imu_frame_id.empty()) {
+    imu_frame_id = GlobalConfig::instance()->param<std::string>("meta", "imu_frame_id", "");
+    if (imu_frame_id.empty()) {
+      logger->warn("IMU frame ID is not set. Using 'imu' as default.");
+      imu_frame_id = "imu";
+    } else {
+      logger->info("auto-detected IMU frame ID: {}", imu_frame_id);
+    }
+  }
+
+  if (lidar_frame_id.empty()) {
+    lidar_frame_id = GlobalConfig::instance()->param<std::string>("meta", "lidar_frame_id", "");
+    if (lidar_frame_id.empty()) {
+      logger->warn("LiDAR frame ID is not set. Using 'lidar' as default.");
+      lidar_frame_id = "lidar";
+    } else {
+      logger->info("auto-detected LiDAR frame ID: {}", lidar_frame_id);
+    }
+  }
+
+  if (base_frame_id.empty()) {
+    base_frame_id = imu_frame_id;
+    logger->info("base_frame_id is not set. using IMU frame ID '{}' as base frame ID.", imu_frame_id);
+  }
 
   // Poses at the end of the scan
   double imu_end_time = new_frame->stamp;

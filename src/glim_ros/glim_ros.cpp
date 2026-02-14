@@ -82,7 +82,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   keep_raw_points = config_ros.param<bool>("glim_ros", "keep_raw_points", false);
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   points_time_offset = config_ros.param<double>("glim_ros", "points_time_offset", 0.0);
-  acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 1.0);
+  acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 0.0);
 
   glim::Config config_sensors(glim::GlobalConfig::get_config_path("config_sensors"));
   intensity_field = config_sensors.param<std::string>("sensors", "intensity_field", "intensity");
@@ -220,6 +220,24 @@ const std::vector<std::shared_ptr<GenericTopicSubscription>>& GlimROS::extension
 
 void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
   spdlog::trace("IMU: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  if (!GlobalConfig::instance()->has_param("meta", "imu_frame_id")) {
+    spdlog::debug("auto-detecting IMU frame ID: {}", msg->header.frame_id);
+    GlobalConfig::instance()->override_param<std::string>("meta", "imu_frame_id", msg->header.frame_id);
+  }
+
+  if (std::abs(acc_scale) < 1e-6) {
+    const double norm = Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z).norm();
+    if (norm > 7.0 && norm < 12.0) {
+      acc_scale = 1.0;
+      spdlog::debug("assuming [m/s^2] for acceleration unit (acc_scale={}, norm={})", acc_scale, norm);
+    } else if (norm > 0.8 && norm < 1.2) {
+      acc_scale = 9.80665;
+      spdlog::debug("assuming [g] for acceleration unit (acc_scale={}, norm={})", acc_scale, norm);
+    } else {
+      acc_scale = 1.0;
+      spdlog::warn("unexpected acceleration norm {}. assuming [m/s^2] for acceleration unit (acc_scale={})", norm, acc_scale);
+    }
+  }
 
   const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
@@ -242,6 +260,10 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
 #ifdef BUILD_WITH_CV_BRIDGE
 void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) {
   spdlog::trace("image: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  if (!GlobalConfig::instance()->has_param("meta", "image_frame")) {
+    spdlog::debug("auto-detecting image frame ID: {}", msg->header.frame_id);
+    GlobalConfig::instance()->override_param<std::string>("meta", "image_frame", msg->header.frame_id);
+  }
 
   auto cv_image = cv_bridge::toCvCopy(msg, "bgr8");
 
@@ -258,6 +280,10 @@ void GlimROS::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg) 
 
 size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
   spdlog::trace("points: {}.{}", msg->header.stamp.sec, msg->header.stamp.nanosec);
+  if (!GlobalConfig::instance()->has_param("meta", "lidar_frame_id")) {
+    spdlog::debug("auto-detecting LiDAR frame ID: {}", msg->header.frame_id);
+    GlobalConfig::instance()->override_param<std::string>("meta", "lidar_frame_id", msg->header.frame_id);
+  }
 
   auto raw_points = glim::extract_raw_points(*msg, intensity_field, ring_field);
   if (raw_points == nullptr) {
