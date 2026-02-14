@@ -80,9 +80,13 @@ std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclc
   map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/map", map_qos);
   odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom", 10);
   pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 10);
+  odom_scanend_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_scanend", 10);
+  pose_scanend_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend", 10);
 
   odom_corrected_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_corrected", 10);
   pose_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_corrected", 10);
+  odom_scanend_corrected_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_scanend_corrected", 10);
+  pose_scanend_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend_corrected", 10);
 
   return {};
 }
@@ -101,6 +105,25 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
 
   const Eigen::Isometry3d T_lidar_imu = new_frame->T_lidar_imu;
   const Eigen::Quaterniond quat_lidar_imu(T_lidar_imu.linear());
+
+  // Poses at the end of the scan
+  double imu_end_time = new_frame->stamp;
+  Eigen::Isometry3d T_imubegin_imuend = Eigen::Isometry3d::Identity();
+  if (new_frame->imu_rate_trajectory.size()) {
+    const Eigen::Matrix<double, 8, 1> imu_begin = new_frame->imu_rate_trajectory.col(0);
+    const Eigen::Matrix<double, 8, 1> imu_end = new_frame->imu_rate_trajectory.col(new_frame->imu_rate_trajectory.cols() - 1);
+
+    Eigen::Isometry3d T_odom_imubegin = Eigen::Isometry3d::Identity();
+    T_odom_imubegin.translation() = imu_begin.segment<3>(1);
+    T_odom_imubegin.linear() = Eigen::Quaterniond(imu_begin(7), imu_begin(4), imu_begin(5), imu_begin(6)).toRotationMatrix();
+
+    Eigen::Isometry3d T_odom_imuend = Eigen::Isometry3d::Identity();
+    T_odom_imuend.translation() = imu_end.segment<3>(1);
+    T_odom_imuend.linear() = Eigen::Quaterniond(imu_end(7), imu_end(4), imu_end(5), imu_end(6)).toRotationMatrix();
+
+    T_imubegin_imuend = T_odom_imubegin.inverse() * T_odom_imuend;
+    imu_end_time = imu_end(0);
+  }
 
   Eigen::Isometry3d T_world_odom;
   Eigen::Quaterniond quat_world_odom;
@@ -122,6 +145,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
   // Publish transforms
   const auto stamp = from_sec(new_frame->stamp);
   const auto tf_stamp = from_sec(new_frame->stamp + tf_time_offset);
+  const auto imu_end_stamp = from_sec(imu_end_time);
 
   const bool publish_tf = !corrected;
   if (publish_tf) {
@@ -217,6 +241,37 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     logger->debug("published odom (stamp={})", new_frame->stamp);
   }
 
+  auto& odom_scan_end_pub = !corrected ? this->odom_scanend_pub : this->odom_scanend_corrected_pub;
+  if (odom_scan_end_pub->get_subscription_count()) {
+    // Publish sensor pose at the end of the scan (without loop closure)
+    if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
+      logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
+    }
+
+    const Eigen::Isometry3d T_odom_imuend = T_odom_imu * T_imubegin_imuend;
+    const Eigen::Quaterniond quat_odom_imuend(T_odom_imuend.linear());
+
+    nav_msgs::msg::Odometry odom;
+    odom.header.stamp = imu_end_stamp;
+    odom.header.frame_id = odom_frame_id;
+    odom.child_frame_id = imu_frame_id;
+    odom.pose.pose.position.x = T_odom_imuend.translation().x();
+    odom.pose.pose.position.y = T_odom_imuend.translation().y();
+    odom.pose.pose.position.z = T_odom_imuend.translation().z();
+    odom.pose.pose.orientation.x = quat_odom_imuend.x();
+    odom.pose.pose.orientation.y = quat_odom_imuend.y();
+    odom.pose.pose.orientation.z = quat_odom_imuend.z();
+    odom.pose.pose.orientation.w = quat_odom_imuend.w();
+
+    odom.twist.twist.linear.x = v_odom_imu.x();
+    odom.twist.twist.linear.y = v_odom_imu.y();
+    odom.twist.twist.linear.z = v_odom_imu.z();
+
+    odom_scan_end_pub->publish(odom);
+
+    logger->debug("published odom (stamp={})", new_frame->stamp);
+  }
+
   auto& pose_pub = !corrected ? this->pose_pub : this->pose_corrected_pub;
   if (pose_pub->get_subscription_count()) {
     // Publish sensor pose (with loop closure)
@@ -231,6 +286,31 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     pose.pose.orientation.z = quat_world_imu.z();
     pose.pose.orientation.w = quat_world_imu.w();
     pose_pub->publish(pose);
+
+    logger->debug("published pose (stamp={})", new_frame->stamp);
+  }
+
+  auto& pose_scan_end_pub = !corrected ? this->pose_scanend_pub : this->pose_scanend_corrected_pub;
+  if (pose_scan_end_pub->get_subscription_count()) {
+    // Publish sensor pose at the end of the scan (with loop closure)
+    if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
+      logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
+    }
+
+    const Eigen::Isometry3d T_world_imuend = T_world_imu * T_imubegin_imuend;
+    const Eigen::Quaterniond quat_world_imuend(T_world_imuend.linear());
+
+    geometry_msgs::msg::PoseStamped pose;
+    pose.header.stamp = imu_end_stamp;
+    pose.header.frame_id = map_frame_id;
+    pose.pose.position.x = T_world_imuend.translation().x();
+    pose.pose.position.y = T_world_imuend.translation().y();
+    pose.pose.position.z = T_world_imuend.translation().z();
+    pose.pose.orientation.x = quat_world_imuend.x();
+    pose.pose.orientation.y = quat_world_imuend.y();
+    pose.pose.orientation.z = quat_world_imuend.z();
+    pose.pose.orientation.w = quat_world_imuend.w();
+    pose_scan_end_pub->publish(pose);
 
     logger->debug("published pose (stamp={})", new_frame->stamp);
   }
