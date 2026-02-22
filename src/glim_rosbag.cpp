@@ -1,4 +1,6 @@
 #include <glob.h>
+#include <termios.h>
+#include <unistd.h>
 #include <chrono>
 #include <filesystem>
 #include <iostream>
@@ -42,6 +44,49 @@ public:
 private:
   double last_sim_time;
   std::chrono::high_resolution_clock::time_point last_real_time;
+};
+
+class KeyboardHandler {
+public:
+  KeyboardHandler() : paused_(false), active_(false) {
+    if (isatty(STDIN_FILENO)) {
+      tcgetattr(STDIN_FILENO, &original_termios_);
+      struct termios raw = original_termios_;
+      raw.c_lflag &= ~(ICANON | ECHO);
+      raw.c_cc[VMIN] = 0;
+      raw.c_cc[VTIME] = 0;
+      tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+      active_ = true;
+    }
+  }
+
+  ~KeyboardHandler() {
+    if (active_) {
+      tcsetattr(STDIN_FILENO, TCSANOW, &original_termios_);
+    }
+  }
+
+  void update() {
+    if (!active_) return;
+    char c;
+    while (read(STDIN_FILENO, &c, 1) > 0) {
+      if (c == ' ') {
+        paused_ = !paused_;
+        if (paused_) {
+          spdlog::info("playback paused (press space to resume)");
+        } else {
+          spdlog::info("playback resumed");
+        }
+      }
+    }
+  }
+
+  bool is_paused() const { return paused_; }
+
+private:
+  bool paused_;
+  bool active_;
+  struct termios original_termios_;
 };
 
 int main(int argc, char** argv) {
@@ -129,6 +174,9 @@ int main(int argc, char** argv) {
     spdlog::info("delaying {} sec", delay);
     std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(delay * 1000)));
   }
+
+  // Keyboard handler for pause/resume
+  KeyboardHandler keyboard;
 
   // Bag read function
   const auto read_bag = [&](const std::string& bag_filename) {
@@ -227,6 +275,22 @@ int main(int argc, char** argv) {
       if (playback_duration > 0.0 && (msg_time - bag_t0) / 1e9 > playback_duration) {
         spdlog::info("reached playback_duration ({} > {})", (msg_time - bag_t0) / 1e9, playback_duration);
         return false;
+      }
+
+      // Pause/resume handling
+      keyboard.update();
+      if (keyboard.is_paused()) {
+        auto pause_start = std::chrono::system_clock::now();
+        while (keyboard.is_paused() && rclcpp::ok()) {
+          rclcpp::spin_some(glim);
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          keyboard.update();
+        }
+        if (!rclcpp::ok()) {
+          return false;
+        }
+        // Adjust real_t0 to account for pause duration to avoid fast-forward
+        real_t0 += std::chrono::duration_cast<std::chrono::system_clock::duration>(std::chrono::system_clock::now() - pause_start);
       }
 
       const auto bag_elapsed = std::chrono::nanoseconds(msg_time - bag_t0);
