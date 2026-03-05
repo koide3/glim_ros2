@@ -60,12 +60,6 @@ std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclc
   tf_listener = std::make_unique<tf2_ros::TransformListener>(*tf_buffer);
   tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(node);
 
-  points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/points", 10);
-  aligned_points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_points", 10);
-
-  points_corrected_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/points_corrected", 10);
-  aligned_points_corrected_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_points_corrected", 10);
-
   rmw_qos_profile_t map_qos_profile = {
     RMW_QOS_POLICY_HISTORY_KEEP_LAST,
     1,
@@ -78,15 +72,32 @@ std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclc
     false};
   rclcpp::QoS map_qos(rclcpp::QoSInitialization(map_qos_profile.history, map_qos_profile.depth), map_qos_profile);
   map_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/map", map_qos);
-  odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom", 10);
-  pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 10);
-  odom_scanend_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_scanend", 10);
-  pose_scanend_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend", 10);
 
+  points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/points", 10);
+  points_corrected_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/points_corrected", 10);
+
+  aligned_points_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_points", 10);
+  aligned_points_corrected_pub = node.create_publisher<sensor_msgs::msg::PointCloud2>("~/aligned_points_corrected", 10);
+
+  odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom", 10);
+  odom_scanend_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_scanend", 10);
   odom_corrected_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_corrected", 10);
-  pose_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_corrected", 10);
   odom_scanend_corrected_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/odom_scanend_corrected", 10);
+
+  lidar_odom_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/lidar_odom", 10);
+  lidar_odom_scanend_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/lidar_odom_scanend", 10);
+  lidar_odom_corrected_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/lidar_odom_corrected", 10);
+  lidar_odom_scanend_corrected_pub = node.create_publisher<nav_msgs::msg::Odometry>("~/lidar_odom_scanend_corrected", 10);
+
+  pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 10);
+  pose_scanend_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend", 10);
+  pose_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_corrected", 10);
   pose_scanend_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend_corrected", 10);
+
+  lidar_pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose", 10);
+  lidar_pose_scanend_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose_scanend", 10);
+  lidar_pose_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose_corrected", 10);
+  lidar_pose_scanend_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose_scanend_corrected", 10);
 
   return {};
 }
@@ -105,6 +116,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
 
   const Eigen::Isometry3d T_lidar_imu = new_frame->T_lidar_imu;
   const Eigen::Quaterniond quat_lidar_imu(T_lidar_imu.linear());
+  const Eigen::Isometry3d T_imu_lidar = T_lidar_imu.inverse();
 
   if (imu_frame_id.empty()) {
     imu_frame_id = GlobalConfig::instance()->param<std::string>("meta", "imu_frame_id", "");
@@ -242,8 +254,56 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     }
   }
 
+  const auto convert_to_lidar_odom = [&](const nav_msgs::msg::Odometry& odom) {
+    const auto& imu_pos = odom.pose.pose.position;
+    const auto& imu_ori = odom.pose.pose.orientation;
+    Eigen::Isometry3d T_odom_imu = Eigen::Isometry3d::Identity();
+    T_odom_imu.translation() << imu_pos.x, imu_pos.y, imu_pos.z;
+    T_odom_imu.linear() = Eigen::Quaterniond(imu_ori.w, imu_ori.x, imu_ori.y, imu_ori.z).toRotationMatrix();
+
+    const Eigen::Isometry3d T_odom_lidar = T_odom_imu * T_imu_lidar;
+    const Eigen::Vector3d lidar_pos = T_odom_lidar.translation();
+    const Eigen::Quaterniond lidar_ori(T_odom_lidar.linear());
+
+    nav_msgs::msg::Odometry lidar_odom = odom;
+    lidar_odom.child_frame_id = lidar_frame_id;
+    lidar_odom.pose.pose.position.x = lidar_pos.x();
+    lidar_odom.pose.pose.position.y = lidar_pos.y();
+    lidar_odom.pose.pose.position.z = lidar_pos.z();
+    lidar_odom.pose.pose.orientation.x = lidar_ori.x();
+    lidar_odom.pose.pose.orientation.y = lidar_ori.y();
+    lidar_odom.pose.pose.orientation.z = lidar_ori.z();
+    lidar_odom.pose.pose.orientation.w = lidar_ori.w();
+
+    return lidar_odom;
+  };
+
+  const auto convert_to_lidar_pose = [&](const geometry_msgs::msg::PoseStamped& pose) {
+    const auto& imu_pos = pose.pose.position;
+    const auto& imu_ori = pose.pose.orientation;
+    Eigen::Isometry3d T_world_imu = Eigen::Isometry3d::Identity();
+    T_world_imu.translation() << imu_pos.x, imu_pos.y, imu_pos.z;
+    T_world_imu.linear() = Eigen::Quaterniond(imu_ori.w, imu_ori.x, imu_ori.y, imu_ori.z).toRotationMatrix();
+
+    const Eigen::Isometry3d T_world_lidar = T_world_imu * T_imu_lidar;
+    const Eigen::Vector3d lidar_pos = T_world_lidar.translation();
+    const Eigen::Quaterniond lidar_ori(T_world_lidar.linear());
+
+    geometry_msgs::msg::PoseStamped lidar_pose = pose;
+    lidar_pose.pose.position.x = lidar_pos.x();
+    lidar_pose.pose.position.y = lidar_pos.y();
+    lidar_pose.pose.position.z = lidar_pos.z();
+    lidar_pose.pose.orientation.x = lidar_ori.x();
+    lidar_pose.pose.orientation.y = lidar_ori.y();
+    lidar_pose.pose.orientation.z = lidar_ori.z();
+    lidar_pose.pose.orientation.w = lidar_ori.w();
+
+    return lidar_pose;
+  };
+
   auto& odom_pub = !corrected ? this->odom_pub : this->odom_corrected_pub;
-  if (odom_pub->get_subscription_count()) {
+  auto& lidar_odom_pub = !corrected ? this->lidar_odom_pub : this->lidar_odom_corrected_pub;
+  if (odom_pub->get_subscription_count() || lidar_odom_pub->get_subscription_count()) {
     // Publish sensor pose (without loop closure)
     nav_msgs::msg::Odometry odom;
     odom.header.stamp = stamp;
@@ -261,13 +321,19 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     odom.twist.twist.linear.y = v_odom_imu.y();
     odom.twist.twist.linear.z = v_odom_imu.z();
 
-    odom_pub->publish(odom);
-
-    logger->debug("published odom (stamp={})", new_frame->stamp);
+    if (odom_pub->get_subscription_count()) {
+      odom_pub->publish(odom);
+      logger->debug("published odom (stamp={})", new_frame->stamp);
+    }
+    if (lidar_odom_pub->get_subscription_count()) {
+      lidar_odom_pub->publish(convert_to_lidar_odom(odom));
+      logger->debug("published lidar_odom (stamp={})", new_frame->stamp);
+    }
   }
 
   auto& odom_scan_end_pub = !corrected ? this->odom_scanend_pub : this->odom_scanend_corrected_pub;
-  if (odom_scan_end_pub->get_subscription_count()) {
+  auto& lidar_odom_scan_end_pub = !corrected ? this->lidar_odom_scanend_pub : this->lidar_odom_scanend_corrected_pub;
+  if (odom_scan_end_pub->get_subscription_count() || lidar_odom_scan_end_pub->get_subscription_count()) {
     // Publish sensor pose at the end of the scan (without loop closure)
     if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
       logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
@@ -293,13 +359,19 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     odom.twist.twist.linear.y = v_odom_imu.y();
     odom.twist.twist.linear.z = v_odom_imu.z();
 
-    odom_scan_end_pub->publish(odom);
-
-    logger->debug("published odom_scanend (scanend_stamp={})", imu_end_time);
+    if (odom_scan_end_pub->get_subscription_count()) {
+      odom_scan_end_pub->publish(odom);
+      logger->debug("published odom_scanend (scanend_stamp={})", imu_end_time);
+    }
+    if (lidar_odom_scan_end_pub->get_subscription_count()) {
+      lidar_odom_scan_end_pub->publish(convert_to_lidar_odom(odom));
+      logger->debug("published lidar_odom_scanend (scanend_stamp={})", imu_end_time);
+    }
   }
 
   auto& pose_pub = !corrected ? this->pose_pub : this->pose_corrected_pub;
-  if (pose_pub->get_subscription_count()) {
+  auto& lidar_pose_pub = !corrected ? this->lidar_pose_pub : this->lidar_pose_corrected_pub;
+  if (pose_pub->get_subscription_count() || lidar_pose_pub->get_subscription_count()) {
     // Publish sensor pose (with loop closure)
     geometry_msgs::msg::PoseStamped pose;
     pose.header.stamp = stamp;
@@ -311,13 +383,20 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     pose.pose.orientation.y = quat_world_imu.y();
     pose.pose.orientation.z = quat_world_imu.z();
     pose.pose.orientation.w = quat_world_imu.w();
-    pose_pub->publish(pose);
 
-    logger->debug("published pose (stamp={})", new_frame->stamp);
+    if (pose_pub->get_subscription_count()) {
+      pose_pub->publish(pose);
+      logger->debug("published pose (stamp={})", new_frame->stamp);
+    }
+    if (lidar_pose_pub->get_subscription_count()) {
+      lidar_pose_pub->publish(convert_to_lidar_pose(pose));
+      logger->debug("published lidar_pose (stamp={})", new_frame->stamp);
+    }
   }
 
   auto& pose_scan_end_pub = !corrected ? this->pose_scanend_pub : this->pose_scanend_corrected_pub;
-  if (pose_scan_end_pub->get_subscription_count()) {
+  auto& lidar_pose_scan_end_pub = !corrected ? this->lidar_pose_scanend_pub : this->lidar_pose_scanend_corrected_pub;
+  if (pose_scan_end_pub->get_subscription_count() || lidar_pose_scan_end_pub->get_subscription_count()) {
     // Publish sensor pose at the end of the scan (with loop closure)
     if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
       logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
@@ -337,9 +416,15 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     pose.pose.orientation.y = quat_world_imuend.y();
     pose.pose.orientation.z = quat_world_imuend.z();
     pose.pose.orientation.w = quat_world_imuend.w();
-    pose_scan_end_pub->publish(pose);
 
-    logger->debug("published pose_scanend (scanend_stamp={})", imu_end_time);
+    if (pose_scan_end_pub->get_subscription_count()) {
+      pose_scan_end_pub->publish(pose);
+      logger->debug("published pose_scanend (scanend_stamp={})", imu_end_time);
+    }
+    if (lidar_pose_scan_end_pub->get_subscription_count()) {
+      lidar_pose_scan_end_pub->publish(convert_to_lidar_pose(pose));
+      logger->debug("published lidar_pose_scanend (scanend_stamp={})", imu_end_time);
+    }
   }
 
   auto& points_pub = !corrected ? this->points_pub : this->points_corrected_pub;
