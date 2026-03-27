@@ -14,6 +14,7 @@ option(BUILD_WITH_CV_BRIDGE "Build with cv_bridge which enables support for proc
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
+find_package(rosidl_default_generators REQUIRED)  # must be explicit; not picked up by ament_auto
 
 find_package(glim REQUIRED)
 
