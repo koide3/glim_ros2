@@ -200,6 +200,17 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   // Start timer
   timer = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { timer_callback(); });
 
+  // Declare dump_path parameter so the save_map service (and shutdown flow) can use it
+  dump_path = "/tmp/dump";
+  this->declare_parameter<std::string>("dump_path", dump_path);
+  this->get_parameter<std::string>("dump_path", dump_path);
+
+  // Save map service — allows on-demand map saving without shutting down the node
+  save_map_service = this->create_service<glim_ros::srv::SaveMap>(
+    "~/save_map",
+    std::bind(&GlimROS::save_map_callback, this, std::placeholders::_1, std::placeholders::_2));
+  spdlog::info("save_map service ready");
+
   spdlog::debug("initialized");
 }
 
@@ -208,9 +219,8 @@ GlimROS::~GlimROS() {
   extension_modules.clear();
 
   if (dump_on_unload) {
-    std::string dump_path = "/tmp/dump";
     wait(true);
-    save(dump_path);
+    save(dump_path);  // uses dump_path member (set from ROS parameter in constructor)
   }
 }
 
@@ -386,6 +396,38 @@ void GlimROS::save(const std::string& path) {
   if (global_mapping) global_mapping->save(path);
   for (auto& module : extension_modules) {
     module->at_exit(path);
+  }
+}
+
+void GlimROS::save_map_callback(
+  const std::shared_ptr<glim_ros::srv::SaveMap::Request> request,
+  std::shared_ptr<glim_ros::srv::SaveMap::Response> response) {
+  std::unique_lock<std::mutex> lock(save_mutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    response->success = false;
+    response->message = "Save already in progress";
+    return;
+  }
+
+  if (!global_mapping) {
+    response->success = false;
+    response->message = "Global mapping is not running";
+    return;
+  }
+
+  const std::string path = request->path.empty() ? dump_path : request->path;
+
+  spdlog::warn("save_map: saving to {} — sensor data may be dropped during optimize+write", path);
+
+  try {
+    this->save(path);
+    response->success = true;
+    response->message = "Saved to " + path;
+    spdlog::info("save_map: done");
+  } catch (const std::exception& e) {
+    response->success = false;
+    response->message = std::string("Save failed: ") + e.what();
+    spdlog::error("save_map: {}", response->message);
   }
 }
 

@@ -3,7 +3,9 @@
 #include <any>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <rclcpp/rclcpp.hpp>
+#include <glim_ros/srv/save_map.hpp>
 
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -42,6 +44,11 @@ public:
   const std::vector<std::shared_ptr<GenericTopicSubscription>>& extension_subscriptions();
 
 private:
+  void save_map_callback(
+    const std::shared_ptr<glim_ros::srv::SaveMap::Request> request,
+    std::shared_ptr<glim_ros::srv::SaveMap::Response> response);
+
+private:
   std::unique_ptr<glim::TimeKeeper> time_keeper;
   std::unique_ptr<glim::CloudPreprocessor> preprocessor;
 
@@ -54,6 +61,10 @@ private:
   double points_time_offset;
   double acc_scale;
   bool dump_on_unload;
+  std::string dump_path;
+
+  std::mutex save_mutex;
+  rclcpp::Service<glim_ros::srv::SaveMap>::SharedPtr save_map_service;
 
   std::string intensity_field, ring_field;
 

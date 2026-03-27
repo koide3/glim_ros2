@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(glim_ros VERSION 1.2.1 LANGUAGES CXX)
+project(glim_ros VERSION 1.2.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -14,8 +14,13 @@ option(BUILD_WITH_CV_BRIDGE "Build with cv_bridge which enables support for proc
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
+find_package(rosidl_default_generators REQUIRED)  # must be explicit; not picked up by ament_auto
 
 find_package(glim REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/SaveMap.srv"
+)
 find_package(Boost REQUIRED COMPONENTS program_options)
 
 if(DEFINED GLIM_USE_OPENCV AND NOT GLIM_USE_OPENCV AND BUILD_WITH_CV_BRIDGE)
@@ -39,17 +44,20 @@ else()
 endif()
 
 ### glim_ros ###
-ament_auto_add_library(glim_ros SHARED
+ament_auto_add_library(glim_ros_node SHARED
   src/glim_ros/glim_ros.cpp
   src/glim_ros/ros_qos.cpp
 )
-target_include_directories(glim_ros PUBLIC
+set_target_properties(glim_ros_node PROPERTIES OUTPUT_NAME "glim_ros")
+target_include_directories(glim_ros_node PUBLIC
   include
 )
-target_link_libraries(glim_ros
+target_link_libraries(glim_ros_node
   glim::glim
 )
-rclcpp_components_register_nodes(glim_ros "glim::GlimROS")
+rclcpp_components_register_nodes(glim_ros_node "glim::GlimROS")
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(glim_ros_node "${cpp_typesupport_target}")
 
 ament_auto_add_library(rviz_viewer SHARED
   src/glim_ros/rviz_viewer.cpp
@@ -60,7 +68,7 @@ ament_auto_add_executable(glim_rosnode
   src/glim_rosnode.cpp
 )
 target_link_libraries(glim_rosnode
-  glim_ros
+  glim_ros_node
 )
 
 ### glim_rosbag ###
@@ -68,7 +76,7 @@ ament_auto_add_executable(glim_rosbag
   src/glim_rosbag.cpp
 )
 target_link_libraries(glim_rosbag
-  glim_ros
+  glim_ros_node
 )
 
 ### validator_node ###
@@ -76,7 +84,7 @@ ament_auto_add_executable(validator_node
   src/validator_node.cpp
 )
 target_link_libraries(validator_node
-  glim_ros
+  glim_ros_node
 )
 
 if(BUILD_WITH_VIEWER)

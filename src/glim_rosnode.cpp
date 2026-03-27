@@ -17,8 +17,7 @@ int main(int argc, char** argv) {
   rclcpp::shutdown();
 
   std::string dump_path = "/tmp/dump";
-  glim->declare_parameter<std::string>("dump_path", dump_path);
-  glim->get_parameter<std::string>("dump_path", dump_path);
+  glim->get_parameter<std::string>("dump_path", dump_path);  // declared in GlimROS constructor
 
   glim->wait();
   glim->save(dump_path);
