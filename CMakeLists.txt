@@ -43,19 +43,20 @@ else()
 endif()
 
 ### glim_ros ###
-ament_auto_add_library(glim_ros SHARED
+ament_auto_add_library(glim_ros_node SHARED
   src/glim_ros/glim_ros.cpp
   src/glim_ros/ros_qos.cpp
 )
-target_include_directories(glim_ros PUBLIC
+set_target_properties(glim_ros_node PROPERTIES OUTPUT_NAME "glim_ros")
+target_include_directories(glim_ros_node PUBLIC
   include
 )
-target_link_libraries(glim_ros
+target_link_libraries(glim_ros_node
   glim::glim
 )
-rclcpp_components_register_nodes(glim_ros "glim::GlimROS")
+rclcpp_components_register_nodes(glim_ros_node "glim::GlimROS")
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(glim_ros "${cpp_typesupport_target}")
+target_link_libraries(glim_ros_node "${cpp_typesupport_target}")
 
 ament_auto_add_library(rviz_viewer SHARED
   src/glim_ros/rviz_viewer.cpp
@@ -66,7 +67,7 @@ ament_auto_add_executable(glim_rosnode
   src/glim_rosnode.cpp
 )
 target_link_libraries(glim_rosnode
-  glim_ros
+  glim_ros_node
 )
 
 ### glim_rosbag ###
@@ -74,7 +75,7 @@ ament_auto_add_executable(glim_rosbag
   src/glim_rosbag.cpp
 )
 target_link_libraries(glim_rosbag
-  glim_ros
+  glim_ros_node
 )
 
 ### validator_node ###
@@ -82,7 +83,7 @@ ament_auto_add_executable(validator_node
   src/validator_node.cpp
 )
 target_link_libraries(validator_node
-  glim_ros
+  glim_ros_node
 )
 
 if(BUILD_WITH_VIEWER)
