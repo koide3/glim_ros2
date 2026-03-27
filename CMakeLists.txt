@@ -16,6 +16,10 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
 find_package(glim REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/SaveMap.srv"
+)
 find_package(Boost REQUIRED COMPONENTS program_options)
 
 if(DEFINED GLIM_USE_OPENCV AND NOT GLIM_USE_OPENCV AND BUILD_WITH_CV_BRIDGE)
@@ -50,6 +54,8 @@ target_link_libraries(glim_ros
   glim::glim
 )
 rclcpp_components_register_nodes(glim_ros "glim::GlimROS")
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(glim_ros "${cpp_typesupport_target}")
 
 ament_auto_add_library(rviz_viewer SHARED
   src/glim_ros/rviz_viewer.cpp

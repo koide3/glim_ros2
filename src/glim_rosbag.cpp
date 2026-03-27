@@ -380,8 +380,7 @@ int main(int argc, char** argv) {
   glim->get_parameter<bool>("auto_quit", auto_quit);
 
   std::string dump_path = "/tmp/dump";
-  glim->declare_parameter<std::string>("dump_path", dump_path);
-  glim->get_parameter<std::string>("dump_path", dump_path);
+  glim->get_parameter<std::string>("dump_path", dump_path);  // declared in GlimROS constructor
 
   for (const auto& bag_filename : bag_filenames) {
     if (!read_bag(bag_filename)) {
