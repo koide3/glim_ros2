@@ -5,6 +5,7 @@
 #include <rclcpp/clock.hpp>
 
 #define GLIM_ROS2
+#include <gtsam/geometry/Pose3.h>
 #include <gtsam_points/types/point_cloud_cpu.hpp>
 #include <glim/odometry/callbacks.hpp>
 #include <glim/mapping/callbacks.hpp>
@@ -93,11 +94,18 @@ std::vector<GenericTopicSubscription::Ptr> RvizViewer::create_subscriptions(rclc
   pose_scanend_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend", 10);
   pose_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_corrected", 10);
   pose_scanend_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/pose_scanend_corrected", 10);
+  pose_corrected_with_cov_pub = node.create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("~/pose_corrected_with_cov", 10);
+  pose_scanend_corrected_with_cov_pub = node.create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("~/pose_scanend_corrected_with_cov", 10);
 
   lidar_pose_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose", 10);
   lidar_pose_scanend_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose_scanend", 10);
   lidar_pose_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose_corrected", 10);
   lidar_pose_scanend_corrected_pub = node.create_publisher<geometry_msgs::msg::PoseStamped>("~/lidar_pose_scanend_corrected", 10);
+  lidar_pose_corrected_with_cov_pub = node.create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("~/lidar_pose_corrected_with_cov", 10);
+  lidar_pose_scanend_corrected_with_cov_pub = node.create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("~/lidar_pose_scanend_corrected_with_cov", 10);
+
+  imu_bias_pub = node.create_publisher<geometry_msgs::msg::TwistStamped>("~/imu_bias", 10);
+  imu_bias_with_cov_pub = node.create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("~/imu_bias_with_cov", 10);
 
   return {};
 }
@@ -117,6 +125,37 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
   const Eigen::Isometry3d T_lidar_imu = new_frame->T_lidar_imu;
   const Eigen::Quaterniond quat_lidar_imu(T_lidar_imu.linear());
   const Eigen::Isometry3d T_imu_lidar = T_lidar_imu.inverse();
+
+  // Covariances
+  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> cov_pose_imu = Eigen::Matrix<double, 6, 6, Eigen::RowMajor>::Zero();    // [x, y, z, rx, ry, rz]
+  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> cov_pose_lidar = Eigen::Matrix<double, 6, 6, Eigen::RowMajor>::Zero();  // [x, y, z, rx, ry, rz]
+
+  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> cov_twist = Eigen::Matrix<double, 6, 6, Eigen::RowMajor>::Zero();  // [vx, vy, vz, wx, wy, wz]
+  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> cov_bias = Eigen::Matrix<double, 6, 6, Eigen::RowMajor>::Zero();   // [ax, ay, az, wx, wy, wz]
+
+  // GTSAM's marginal covariance is in the order of [rx, ry, rz, x, y, z], so we need to reorder it to [x, y, z, rx, ry, rz]
+  const auto reorder_cov = [](const gtsam::Matrix6& C) {
+    Eigen::Matrix<double, 6, 6, Eigen::RowMajor> cov;
+    cov.block<3, 3>(0, 0) = C.block<3, 3>(3, 3);
+    cov.block<3, 3>(0, 3) = C.block<3, 3>(3, 0);
+    cov.block<3, 3>(3, 0) = C.block<3, 3>(0, 3);
+    cov.block<3, 3>(3, 3) = C.block<3, 3>(0, 0);
+    return cov;
+  };
+
+  if (new_frame->cov_computed) {
+    // Transform the covariance from the IMU frame to the LiDAR frame
+    const gtsam::Matrix6 C_imu = new_frame->pose_cov;
+
+    const gtsam::Matrix6 Ad_T_lidar_imu = gtsam::Pose3(T_lidar_imu.matrix()).AdjointMap();
+    const gtsam::Matrix6 C_lidar = Ad_T_lidar_imu * C_imu * Ad_T_lidar_imu.transpose();
+
+    cov_pose_imu = reorder_cov(C_imu);
+    cov_pose_lidar = reorder_cov(C_lidar);
+
+    cov_twist.block<3, 3>(0, 0) = new_frame->vel_cov;
+    cov_bias = new_frame->bias_cov;
+  }
 
   if (imu_frame_id.empty()) {
     imu_frame_id = GlobalConfig::instance()->param<std::string>("meta", "imu_frame_id", "");
@@ -275,6 +314,11 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     lidar_odom.pose.pose.orientation.z = lidar_ori.z();
     lidar_odom.pose.pose.orientation.w = lidar_ori.w();
 
+    if (new_frame->cov_computed) {
+      std::copy(cov_pose_lidar.data(), cov_pose_lidar.data() + 36, lidar_odom.pose.covariance.begin());
+      std::copy(cov_twist.data(), cov_twist.data() + 36, lidar_odom.twist.covariance.begin());
+    }
+
     return lidar_odom;
   };
 
@@ -320,6 +364,11 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     odom.twist.twist.linear.x = v_odom_imu.x();
     odom.twist.twist.linear.y = v_odom_imu.y();
     odom.twist.twist.linear.z = v_odom_imu.z();
+
+    if (new_frame->cov_computed) {
+      std::copy(cov_pose_imu.data(), cov_pose_imu.data() + 36, odom.pose.covariance.begin());
+      std::copy(cov_twist.data(), cov_twist.data() + 36, odom.twist.covariance.begin());
+    }
 
     if (odom_pub->get_subscription_count()) {
       odom_pub->publish(odom);
@@ -371,7 +420,15 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
 
   auto& pose_pub = !corrected ? this->pose_pub : this->pose_corrected_pub;
   auto& lidar_pose_pub = !corrected ? this->lidar_pose_pub : this->lidar_pose_corrected_pub;
-  if (pose_pub->get_subscription_count() || lidar_pose_pub->get_subscription_count()) {
+  // Covariance topics exist only for the corrected estimates
+  const bool publish_pose_with_cov = corrected && pose_corrected_with_cov_pub->get_subscription_count();
+  const bool publish_lidar_pose_with_cov = corrected && lidar_pose_corrected_with_cov_pub->get_subscription_count();
+  if (
+    pose_pub->get_subscription_count() ||        //
+    lidar_pose_pub->get_subscription_count() ||  //
+    publish_pose_with_cov ||                     //
+    publish_lidar_pose_with_cov                  //
+  ) {
     // Publish sensor pose (with loop closure)
     geometry_msgs::msg::PoseStamped pose;
     pose.header.stamp = stamp;
@@ -388,15 +445,40 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
       pose_pub->publish(pose);
       logger->debug("published pose (stamp={})", new_frame->stamp);
     }
+    if (publish_pose_with_cov) {
+      geometry_msgs::msg::PoseWithCovarianceStamped pose_with_cov;
+      pose_with_cov.header = pose.header;
+      pose_with_cov.pose.pose = pose.pose;
+      std::copy(cov_pose_imu.data(), cov_pose_imu.data() + 36, pose_with_cov.pose.covariance.begin());
+      pose_corrected_with_cov_pub->publish(pose_with_cov);
+      logger->debug("published pose_with_cov (stamp={})", new_frame->stamp);
+    }
+
     if (lidar_pose_pub->get_subscription_count()) {
       lidar_pose_pub->publish(convert_to_lidar_pose(pose));
       logger->debug("published lidar_pose (stamp={})", new_frame->stamp);
+    }
+    if (publish_lidar_pose_with_cov) {
+      geometry_msgs::msg::PoseWithCovarianceStamped lidar_pose_with_cov;
+      lidar_pose_with_cov.header = pose.header;
+      lidar_pose_with_cov.pose.pose = convert_to_lidar_pose(pose).pose;
+      std::copy(cov_pose_lidar.data(), cov_pose_lidar.data() + 36, lidar_pose_with_cov.pose.covariance.begin());
+      lidar_pose_corrected_with_cov_pub->publish(lidar_pose_with_cov);
+      logger->debug("published lidar_pose_with_cov (stamp={})", new_frame->stamp);
     }
   }
 
   auto& pose_scan_end_pub = !corrected ? this->pose_scanend_pub : this->pose_scanend_corrected_pub;
   auto& lidar_pose_scan_end_pub = !corrected ? this->lidar_pose_scanend_pub : this->lidar_pose_scanend_corrected_pub;
-  if (pose_scan_end_pub->get_subscription_count() || lidar_pose_scan_end_pub->get_subscription_count()) {
+  // Covariance topics exist only for the corrected estimates
+  const bool publish_pose_scanend_with_cov = corrected && pose_scanend_corrected_with_cov_pub->get_subscription_count();
+  const bool publish_lidar_pose_scanend_with_cov = corrected && lidar_pose_scanend_corrected_with_cov_pub->get_subscription_count();
+  if (
+    pose_scan_end_pub->get_subscription_count() ||        //
+    lidar_pose_scan_end_pub->get_subscription_count() ||  //
+    publish_pose_scanend_with_cov ||                      //
+    publish_lidar_pose_scanend_with_cov                   //
+  ) {
     // Publish sensor pose at the end of the scan (with loop closure)
     if (std::abs(imu_end_time - new_frame->stamp) < 1e-3) {
       logger->warn("Scan end time is too close to the frame time (imu_end_time={}, frame_time={})", imu_end_time, new_frame->stamp);
@@ -424,6 +506,60 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     if (lidar_pose_scan_end_pub->get_subscription_count()) {
       lidar_pose_scan_end_pub->publish(convert_to_lidar_pose(pose));
       logger->debug("published lidar_pose_scanend (scanend_stamp={})", imu_end_time);
+    }
+
+    if (publish_pose_scanend_with_cov || publish_lidar_pose_scanend_with_cov) {
+      // Transform the covariance to the scan-end pose (T_world_imuend = T_world_imu * T_imubegin_imuend)
+      const gtsam::Matrix6 Ad_T_imuend_imubegin = gtsam::Pose3(T_imubegin_imuend.inverse().matrix()).AdjointMap();
+      const gtsam::Matrix6 C_imuend = Ad_T_imuend_imubegin * new_frame->pose_cov * Ad_T_imuend_imubegin.transpose();
+
+      if (publish_pose_scanend_with_cov) {
+        geometry_msgs::msg::PoseWithCovarianceStamped pose_with_cov;
+        pose_with_cov.header = pose.header;
+        pose_with_cov.pose.pose = pose.pose;
+        const auto cov_pose_imuend = reorder_cov(C_imuend);
+        std::copy(cov_pose_imuend.data(), cov_pose_imuend.data() + 36, pose_with_cov.pose.covariance.begin());
+        pose_scanend_corrected_with_cov_pub->publish(pose_with_cov);
+        logger->debug("published pose_scanend_with_cov (scanend_stamp={})", imu_end_time);
+      }
+      if (publish_lidar_pose_scanend_with_cov) {
+        const gtsam::Matrix6 Ad_T_lidar_imu = gtsam::Pose3(T_lidar_imu.matrix()).AdjointMap();
+        const gtsam::Matrix6 C_lidarend = Ad_T_lidar_imu * C_imuend * Ad_T_lidar_imu.transpose();
+
+        geometry_msgs::msg::PoseWithCovarianceStamped lidar_pose_with_cov;
+        lidar_pose_with_cov.header = pose.header;
+        lidar_pose_with_cov.pose.pose = convert_to_lidar_pose(pose).pose;
+        const auto cov_pose_lidarend = reorder_cov(C_lidarend);
+        std::copy(cov_pose_lidarend.data(), cov_pose_lidarend.data() + 36, lidar_pose_with_cov.pose.covariance.begin());
+        lidar_pose_scanend_corrected_with_cov_pub->publish(lidar_pose_with_cov);
+        logger->debug("published lidar_pose_scanend_with_cov (scanend_stamp={})", imu_end_time);
+      }
+    }
+  }
+
+  if (corrected && (imu_bias_pub->get_subscription_count() || imu_bias_with_cov_pub->get_subscription_count())) {
+    // Publish IMU bias
+    geometry_msgs::msg::TwistStamped bias;
+    bias.header.stamp = stamp;
+    bias.header.frame_id = imu_frame_id;
+    bias.twist.linear.x = new_frame->imu_bias(0);
+    bias.twist.linear.y = new_frame->imu_bias(1);
+    bias.twist.linear.z = new_frame->imu_bias(2);
+    bias.twist.angular.x = new_frame->imu_bias(3);
+    bias.twist.angular.y = new_frame->imu_bias(4);
+    bias.twist.angular.z = new_frame->imu_bias(5);
+
+    if (imu_bias_pub->get_subscription_count()) {
+      imu_bias_pub->publish(bias);
+      logger->debug("published imu_bias (stamp={})", new_frame->stamp);
+    }
+    if (imu_bias_with_cov_pub->get_subscription_count()) {
+      geometry_msgs::msg::TwistWithCovarianceStamped bias_with_cov;
+      bias_with_cov.header = bias.header;
+      bias_with_cov.twist.twist = bias.twist;
+      std::copy(cov_bias.data(), cov_bias.data() + 36, bias_with_cov.twist.covariance.begin());
+      imu_bias_with_cov_pub->publish(bias_with_cov);
+      logger->debug("published imu_bias_with_cov (stamp={})", new_frame->stamp);
     }
   }
 
