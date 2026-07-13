@@ -220,6 +220,7 @@ GlimROS::~GlimROS() {
 
   if (dump_on_unload) {
     wait(true);
+    std::lock_guard<std::mutex> lock(save_mutex);
     save(dump_path);  // uses dump_path member (set from ROS parameter in constructor)
   }
 }
@@ -415,7 +416,9 @@ void GlimROS::save_map_callback(
     return;
   }
 
-  const std::string path = request->path.empty() ? dump_path : request->path;
+  std::string default_path;
+  this->get_parameter("dump_path", default_path);
+  const std::string path = request->path.empty() ? default_path : request->path;
 
   spdlog::warn("save_map: saving to {} — sensor data may be dropped during optimize+write", path);
 
