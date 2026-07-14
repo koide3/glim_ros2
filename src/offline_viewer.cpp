@@ -12,11 +12,12 @@
 int main(int argc, char** argv) {
   using namespace boost::program_options;
   options_description desc("GLIM offline viewer");
-  desc.add_options()                                                               //
-    ("help", "produce help message")                                               //
-    ("map_path", value<std::string>(), "Input map path (dump directory)")          //
-    ("config_path", value<std::string>()->default_value("config"), "Config path")  //
-    ("debug", "Enable debug printing")                                             //
+  desc.add_options()                                                                             //
+    ("help", "produce help message")                                                             //
+    ("map_path", value<std::string>(), "Input map path (dump directory)")                        //
+    ("config_path", value<std::string>()->default_value("config"), "Config path")                //
+    ("export_path", value<std::string>()->default_value(""), "Map point cloud save path (PLY)")  //
+    ("debug", "Enable debug printing")                                                           //
     ;
 
   positional_options_description po;
@@ -56,6 +57,6 @@ int main(int argc, char** argv) {
     spdlog::info("map_path={}", init_map_path);
   }
 
-  glim::OfflineViewer viewer(init_map_path);
+  glim::OfflineViewer viewer(init_map_path, vm["export_path"].as<std::string>());
   viewer.wait();
 }
