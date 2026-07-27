@@ -60,9 +60,12 @@ public:
     }
   }
 
-  ~KeyboardHandler() {
+  ~KeyboardHandler() { cleanup(); }
+
+  void cleanup() {
     if (active_) {
       tcsetattr(STDIN_FILENO, TCSANOW, &original_termios_);
+      active_ = false;
     }
   }
 
@@ -360,7 +363,7 @@ int main(int argc, char** argv) {
       speed_counter.update(msg_time / 1e9);
 
       const auto t0 = std::chrono::high_resolution_clock::now();
-      while (glim->needs_wait()) {
+      while (glim->needs_wait() && rclcpp::ok()) {
         rclcpp::spin_some(glim);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         spdlog::debug("throttling (waiting for odometry estimation)");
@@ -390,12 +393,14 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (!auto_quit) {
+  if (!auto_quit && rclcpp::ok()) {
     rclcpp::spin(glim);
   }
 
+  keyboard.cleanup();  // Explicitly restore terminal settings to avoid issues if the program is interrupted before exiting normally.
   glim->wait(auto_quit);
   glim->save(dump_path);
+  glim.reset();
 
   return 0;
 }
