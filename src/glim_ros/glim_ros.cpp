@@ -383,7 +383,9 @@ void GlimROS::wait(bool auto_quit) {
 }
 
 void GlimROS::save(const std::string& path) {
-  if (global_mapping) global_mapping->save(path);
+  if (global_mapping) {
+    global_mapping->save(path);
+  }
   for (auto& module : extension_modules) {
     module->at_exit(path);
   }
