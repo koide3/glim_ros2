@@ -12,6 +12,7 @@
   <depend>glim</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
+  <depend>ament_index_cpp</depend>
   <depend>rosbag2_cpp</depend>
   <depend>rosbag2_compression</depend>
   <depend>rosbag2_storage</depend>
