@@ -623,7 +623,13 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
 
   // Invoke a submap concatenation task in the RvizViewer thread
   invoke([this, latest_submap, submap_poses] {
-    this->submaps.push_back(latest_submap->frame);
+    // on_update_submaps also fires from GlobalMapping::optimize(), which runs periodically while
+    // the input queues are idle and adds no submap. Appending unconditionally would then push the
+    // same last submap again and again, growing this->submaps past submap_poses and making the
+    // indexed lookup below read out of bounds. Only append when a submap was actually added.
+    if (this->submaps.size() < submap_poses.size()) {
+      this->submaps.push_back(latest_submap->frame);
+    }
 
     if (!map_pub->get_subscription_count()) {
       return;
