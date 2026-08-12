@@ -53,6 +53,7 @@ private:
   double imu_time_offset;
   double points_time_offset;
   double acc_scale;
+  double ang_scale;
   bool dump_on_unload;
 
   std::string intensity_field, ring_field;

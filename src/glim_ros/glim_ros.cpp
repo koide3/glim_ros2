@@ -83,6 +83,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   imu_time_offset = config_ros.param<double>("glim_ros", "imu_time_offset", 0.0);
   points_time_offset = config_ros.param<double>("glim_ros", "points_time_offset", 0.0);
   acc_scale = config_ros.param<double>("glim_ros", "acc_scale", 0.0);
+  ang_scale = config_ros.param<double>("glim_ros", "ang_scale", 1.0);
 
   glim::Config config_sensors(glim::GlobalConfig::get_config_path("config_sensors"));
   intensity_field = config_sensors.param<std::string>("sensors", "intensity_field", "intensity");
@@ -241,7 +242,7 @@ void GlimROS::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
 
   const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
   const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
-  const Eigen::Vector3d angular_vel(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
+  const Eigen::Vector3d angular_vel = ang_scale * Eigen::Vector3d(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
 
   if (!time_keeper->validate_imu_stamp(imu_stamp)) {
     spdlog::warn("skip an invalid IMU data (stamp={})", imu_stamp);
