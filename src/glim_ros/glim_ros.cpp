@@ -27,6 +27,7 @@
 #include <glim/util/config.hpp>
 #include <glim/util/logging.hpp>
 #include <glim/util/time_keeper.hpp>
+#include <glim/util/point_attributes.hpp>
 #include <glim/util/ros_cloud_converter.hpp>
 #include <glim/util/extension_module.hpp>
 #include <glim/util/extension_module_ros2.hpp>
@@ -88,6 +89,7 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
   glim::Config config_sensors(glim::GlobalConfig::get_config_path("config_sensors"));
   intensity_field = config_sensors.param<std::string>("sensors", "intensity_field", "intensity");
   ring_field = config_sensors.param<std::string>("sensors", "ring_field", "");
+  extra_point_fields = glim::load_extra_point_fields(config_sensors);
 
   // Setup GPU-based linearization
 #ifdef BUILD_GTSAM_POINTS_GPU
@@ -286,7 +288,7 @@ size_t GlimROS::points_callback(const sensor_msgs::msg::PointCloud2::ConstShared
     GlobalConfig::instance()->override_param<std::string>("meta", "lidar_frame_id", msg->header.frame_id);
   }
 
-  auto raw_points = glim::extract_raw_points(*msg, intensity_field, ring_field);
+  auto raw_points = glim::extract_raw_points(*msg, intensity_field, ring_field, extra_point_fields);
   if (raw_points == nullptr) {
     spdlog::warn("failed to extract points from message");
     return 0;

@@ -57,6 +57,7 @@ private:
   bool dump_on_unload;
 
   std::string intensity_field, ring_field;
+  std::vector<std::string> extra_point_fields;
 
   // Extension modulles
   std::vector<std::shared_ptr<ExtensionModule>> extension_modules;
