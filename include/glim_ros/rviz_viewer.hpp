@@ -2,6 +2,7 @@
 
 #include <any>
 #include <atomic>
+#include <mutex>
 #include <thread>
 #include <chrono>
 
@@ -21,6 +22,7 @@
 #include <glim/mapping/sub_map.hpp>
 #include <glim/util/extension_module.hpp>
 #include <glim/util/extension_module_ros2.hpp>
+#include <glim/util/point_attribute_types.hpp>
 
 namespace spdlog {
 class logger;
@@ -45,6 +47,7 @@ private:
   void odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, bool corrected);
   void globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& submaps);
   void invoke(const std::function<void()>& task);
+  PointAttributeTypes get_point_attribute_types_cached();
 
   void spin_once();
 
@@ -63,6 +66,9 @@ private:
   std::string base_frame_id;
   std::string odom_frame_id;
   std::string map_frame_id;
+  std::vector<std::string> extra_point_fields;
+  std::mutex point_attribute_types_mutex;
+  PointAttributeTypes point_attribute_types;
   bool publish_imu2lidar;
   double tf_time_offset;
 

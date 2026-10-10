@@ -11,6 +11,7 @@
 #include <glim/mapping/callbacks.hpp>
 #include <glim/util/logging.hpp>
 #include <glim/util/config.hpp>
+#include <glim/util/point_attributes.hpp>
 #include <glim/util/trajectory_manager.hpp>
 #include <glim/util/ros_cloud_converter.hpp>
 
@@ -30,6 +31,9 @@ RvizViewer::RvizViewer() : logger(create_module_logger("rviz")) {
   map_frame_id = config.param<std::string>("glim_ros", "map_frame_id", "map");
   publish_imu2lidar = config.param<bool>("glim_ros", "publish_imu2lidar", true);
   tf_time_offset = config.param<double>("glim_ros", "tf_time_offset", 1e-6);
+
+  const Config config_sensors(GlobalConfig::get_config_path("config_sensors"));
+  extra_point_fields = load_extra_point_fields(config_sensors);
 
   last_globalmap_pub_time = rclcpp::Clock(rcl_clock_type_t::RCL_ROS_TIME).now();
   trajectory.reset(new TrajectoryManager);
@@ -579,7 +583,7 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
         break;
     }
 
-    auto points = frame_to_pointcloud2(frame_id, new_frame->stamp, *new_frame->frame);
+    auto points = frame_to_pointcloud2(frame_id, new_frame->stamp, *new_frame->frame, get_point_attribute_types_cached());
     points_pub->publish(*points);
 
     logger->debug("published points (stamp={} num_points={})", new_frame->stamp, new_frame->frame->size());
@@ -598,12 +602,22 @@ void RvizViewer::odometry_new_frame(const EstimationFrame::ConstPtr& new_frame, 
     frame.points = transformed.data();
     frame.times = new_frame->frame->times;
     frame.intensities = new_frame->frame->intensities;
+    frame.aux_attributes = new_frame->frame->aux_attributes;
 
-    auto points = frame_to_pointcloud2(map_frame_id, new_frame->stamp, frame);
+    auto points = frame_to_pointcloud2(map_frame_id, new_frame->stamp, frame, get_point_attribute_types_cached());
     aligned_points_pub->publish(*points);
 
     logger->debug("published aligned_points (stamp={} num_points={})", new_frame->stamp, frame.size());
   }
+}
+
+PointAttributeTypes RvizViewer::get_point_attribute_types_cached() {
+  // Types are recorded by the preprocessor when the fields first appear. Re-read them until all configured fields are known.
+  std::lock_guard<std::mutex> lock(point_attribute_types_mutex);
+  if (point_attribute_types.size() < extra_point_fields.size()) {
+    point_attribute_types = get_point_attribute_types();
+  }
+  return point_attribute_types;
 }
 
 void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& submaps) {
@@ -661,8 +675,9 @@ void RvizViewer::globalmap_on_update_submaps(const std::vector<SubMap::Ptr>& sub
       std::transform(submap->points, submap->points + submap->size(), merged->points + begin, [&](const Eigen::Vector4d& p) { return submap_poses[i] * p; });
       begin += submap->size();
     }
+    concat_aux_attributes(this->submaps, *merged);
 
-    auto points_msg = frame_to_pointcloud2(map_frame_id, now.seconds(), *merged);
+    auto points_msg = frame_to_pointcloud2(map_frame_id, now.seconds(), *merged, get_point_attribute_types_cached());
     map_pub->publish(*points_msg);
   });
 }
